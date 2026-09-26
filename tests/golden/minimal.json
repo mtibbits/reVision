@@ -1,0 +1,13 @@
+{
+  "files": {
+    "assets/app.fba70562.js": "fba70562808760d889f1d2b8e540da75f48acd2f9402a911c0f4a06db26dfc14",
+    "assets/styles.aa1620d4.css": "aa1620d439b75fb51609f3ce28d149988c72a122e53f63cf00f459c5e9999077",
+    "assets/tokens.39cfa450.css": "39cfa4501b6ba71bc235bd6c2d25a32ab2bffee8ba3a6068d8abf01f6007d66c",
+    "index.html": "c748b555cc4ef9f6abcd492a1662b32f4892444a70d130ccfed2edbb693d03b2",
+    "intro/hello/index.html": "e674c11e19c43bdb414a977eb1c02d8320d2f3caa3cdb2686dd2ededb49033f3",
+    "intro/hello/media/narration.wav": "439e6bceb8a4a84c6ceec9a1a219118cf4047328feca87faace40f107c486934",
+    "intro/quiet/index.html": "ecb20c5fceeacbaed1fb2326414c6836c613051db2a83b932d5394516630c67e",
+    "site.json": "cd2be74eb4d86f09240ac469d184111c5154a0437ca031be5f553776c7cdf590"
+  },
+  "graphviz": "16.1.0"
+}

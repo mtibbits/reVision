@@ -1,0 +1,10 @@
+site:
+  title: reVision minimal example
+  base_url: ""
+repo:
+  url: https://github.com/mtibbits/reVision
+  host: github
+content: docs/revision
+output: public
+narration:
+  voice: en_US-lessac-medium

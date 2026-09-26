@@ -1,0 +1,14 @@
+url: "https://developer.arm.com/architectures/instruction-sets/intrinsics/{name}"
+names:
+  - vld1q_f32
+  - vst1q_f32
+  - vdupq_n_f32
+  - vmulq_f32
+  - vaddq_f32
+  - vmlaq_f32
+  - vfmaq_f32
+  - vpadd_f32
+  - vget_low_f32
+  - vget_high_f32
+  - vgetq_lane_f32
+  - vaddvq_f32

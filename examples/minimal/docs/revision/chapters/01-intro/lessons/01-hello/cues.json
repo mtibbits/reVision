@@ -1,0 +1,34 @@
+{
+  "media": "media/narration.wav",
+  "segments": [
+    {
+      "end": 4.6,
+      "show": [
+        "add-fn"
+      ],
+      "start": 0.4,
+      "text": "This program adds two numbers. The helper function takes two integers."
+    },
+    {
+      "end": 7.28,
+      "show": [
+        "add-expr"
+      ],
+      "start": 5.0,
+      "text": "It returns their sum on a single line."
+    },
+    {
+      "diagram": "flow",
+      "end": 11.34,
+      "node": "main-fn",
+      "show": [
+        "main-fn",
+        "call-site"
+      ],
+      "start": 7.68,
+      "text": "The entry point calls the helper once, then prints the total."
+    }
+  ],
+  "text_hash": "sha256:5da95f48f6e4630fbe4b1b66d66e90b53047492803be537ed1607c6a2a2fcabc",
+  "voice": "silent-fixture"
+}

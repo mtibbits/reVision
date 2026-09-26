@@ -7,3 +7,67 @@ code they describe. A narration track drives the same boxes on a timeline.
 Install with `pip install revision-engine`, add a `revision.yaml` and a
 `docs/revision/` folder to the repository you want to teach, and run `rv2 build`.
 Revision control, revisited.
+
+## Add reVision to a repository
+
+1. Install the engine. Until it is on PyPI, pin a release tag:
+   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.1.0"`.
+   Graphviz (`dot`) must be on the PATH for diagrams.
+2. Create `revision.yaml` at the repository root:
+   ```yaml
+   site: { title: My project by example, base_url: "" }
+   repo: { url: https://github.com/you/project, host: github }   # or host: gitlab
+   content: docs/revision
+   output: public
+   ```
+3. Create `docs/revision/curriculum.yaml` and one lesson folder holding `lesson.md`
+   and `anchors.yaml`. Copy `examples/minimal/docs/revision/` from this repository to start.
+4. `rv2 check` to validate, `rv2 serve` to preview, `rv2 build` to write `public/`.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `rv2 build` | Writes the site into the output folder. No network. Same commit, same bytes. |
+| `rv2 check` | Runs every validation without writing. Use it as a pre-commit hook. |
+| `rv2 serve` | Builds to a temp folder, serves on localhost, rebuilds on change. |
+| `rv2 narrate LESSON --model voice.onnx` | Synthesizes `narration.yaml` with Piper into audio plus `cues.json`. Commit both. |
+
+`revision` is an alias for `rv2`.
+
+## Writing a lesson
+
+- `lesson.md` starts with front matter: `title`, `file` (the source file shown), and optionally
+  `summary`, `start` (the anchor boxed on load), `media`, and `voice`.
+- `anchors.yaml` names code regions. Each anchor uses one form: `from`/`to` (a line containing
+  `from`, then the first later line matching the `to` regex), `match` (one line), or
+  `lines: 88-92`. Add `variant: true` and a `label` to list it in the Variants panel.
+- In the body, `[phrase](@anchor)` boxes a region, `[name](!intrinsic)` links a SIMD intrinsic to
+  its vendor page (a bare `` `name` `` in inline code auto-links too), `![Alt](diagrams/x.dot)`
+  inlines a Graphviz diagram (give a node `id="anchor-name"` to make it hover and click like a
+  phrase), and a fenced block with the language `quiz` adds a page-local knowledge check.
+- `narration.yaml` is a list of segments: `text` plus what to `show`, and optionally a `diagram`
+  and `node` to bring into view. Timings are derived by `rv2 narrate`, never typed. If the words
+  change and `narrate` is not rerun, `build` fails with the diff.
+
+## Deploy
+
+GitHub Actions: install Python and Graphviz, `pip install revision-engine`, `rv2 build`, then
+upload `public/` with `actions/upload-pages-artifact`. GitLab CI: the same three commands in a
+`pages` job with `public/` as its artifact. `.github/workflows/demo.yml` in this repository builds
+`examples/minimal/` that way.
+
+## Developing the engine
+
+```bash
+python -m venv .venv && source .venv/Scripts/activate   # or .venv/bin/activate
+python -m pip install -e ".[dev]" && python -m playwright install chromium
+python -m pytest --browser chromium
+```
+
+The golden test records the Graphviz version it was generated with and skips on any other.
+After an intentional rendering change, regenerate it with `RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py`.
+
+## License
+
+MIT.
