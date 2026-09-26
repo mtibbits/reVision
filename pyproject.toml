@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "revision-engine"
+version = "0.1.0"
+description = "reVision: a static-site build tool for teaching code by example."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Matthew Tibbits" }]
+dependencies = [
+  "pyyaml>=6.0",
+  "pygments>=2.17",
+  "jinja2>=3.1",
+  "markdown-it-py>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-playwright>=0.5"]
+
+[project.scripts]
+rv2 = "revision_engine.cli:main"
+revision = "revision_engine.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/mtibbits/reVision"
+
+[tool.hatch.build.targets.wheel]
+packages = ["revision_engine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
