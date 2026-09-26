@@ -43,3 +43,10 @@ def test_unknown_extension_falls_back_to_plain_text():
 def test_token_css_is_scoped():
     css = token_css()
     assert ".rv-code .k" in css or ".rv-code .k " in css
+
+
+def test_token_css_has_dark_variants_and_no_container_background():
+    css = token_css()
+    assert ':root[data-theme="dark"] .rv-code .k' in css
+    assert "@media (prefers-color-scheme: dark)" in css and ':root:not([data-theme="light"]) .rv-code .k' in css
+    assert not re.search(r"^\.rv-code\s*\{[^}]*background", css, re.M)

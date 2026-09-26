@@ -44,5 +44,19 @@ def highlight_source(source: SourceFile) -> str:
     return "\n".join(out) + "\n"
 
 
+def _style_defs(style: str, selector: str) -> str:
+    """Pygments token rules under `selector`, without the container background rule."""
+    defs = HtmlFormatter(style=style).get_style_defs(selector)
+    kept = [line for line in defs.splitlines() if not re.match(re.escape(selector) + r"\s*\{", line)]
+    return "\n".join(kept)
+
+
 def token_css() -> str:
-    return HtmlFormatter(style="default").get_style_defs(".rv-code")
+    light = _style_defs("default", ".rv-code")
+    dark_forced = _style_defs("github-dark", ':root[data-theme="dark"] .rv-code')
+    dark_auto = _style_defs("github-dark", ':root:not([data-theme="light"]) .rv-code')
+    return (
+        f"{light}\n"
+        f"@media (prefers-color-scheme: dark) {{\n{dark_auto}\n}}\n"
+        f"{dark_forced}\n"
+    )

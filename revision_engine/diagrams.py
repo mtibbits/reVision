@@ -31,7 +31,11 @@ def render_dot(path: Path, where: str) -> str:
     if shutil.which("dot") is None:
         raise BuildError(f"{where}: graphviz 'dot' is not installed or not on PATH")
     proc = subprocess.run(
-        ["dot", "-Tsvg", str(path)], capture_output=True, text=True, encoding="utf-8", check=False
+        ["dot", "-Tsvg", "-Gbgcolor=transparent", str(path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
     )
     if proc.returncode != 0:
         raise BuildError(f"{where}: graphviz failed: {proc.stderr.strip()}")
