@@ -147,8 +147,106 @@
   if (!pinned && data.start) showAnchor(data.start, { instant: true });
   window.addEventListener("hashchange", applyHash);
 
-  window.RV = { data, openPanel, setTheme, boxLines, clearBox, pin, showAnchor, applyHash,
+  /* ---- media and cues ---- */
+  const mediaEl = $("rv-media-el");
+  const segEls = Array.from(document.querySelectorAll(".rv-seg"));
+  const cues = Array.isArray(data.cues) ? data.cues : [];
+  let activeIndex = -1;
+
+  function unionRange(names) {
+    let start = Infinity, end = -Infinity;
+    names.forEach((n) => { const r = anchorRange(n); if (r) { start = Math.min(start, r.start); end = Math.max(end, r.end); } });
+    return start === Infinity ? null : { start, end };
+  }
+  function applyCue(index) {
+    segEls.forEach((el, i) => el.classList.toggle("rv-active", i === index));
+    document.querySelectorAll(".rv-node-active").forEach((el) => el.classList.remove("rv-node-active"));
+    activeIndex = index;
+    const seg = cues[index];
+    if (!seg) { cueBox = null; return; }
+    const range = seg.show ? unionRange(seg.show) : null;
+    cueBox = range;
+    if (range) boxLines(range.start, range.end);
+    if (seg.diagram) {
+      const fig = document.querySelector('.rv-diagram[data-diagram="' + seg.diagram + '"]');
+      if (fig) {
+        fig.scrollIntoView({ block: "center", behavior: "smooth" });
+        if (seg.node) { const node = fig.querySelector('[data-node="' + seg.node + '"]'); if (node) node.classList.add("rv-node-active"); }
+      }
+    }
+    const el = segEls[index];
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }
+  function segmentAt(t) {
+    for (let i = cues.length - 1; i >= 0; i--) if (t >= cues[i].start) return i;
+    return -1;
+  }
+  function activeSegment() { return activeIndex; }
+  /* A seek before metadata has loaded is dropped by the browser and may echo a timeupdate at 0,
+     so the target is parked until loadedmetadata and timeupdate is ignored meanwhile. */
+  let pendingSeekTo = null;
+  function seek(seconds) {
+    if (!mediaEl) return;
+    const i = segmentAt(seconds);
+    if (i !== activeIndex) applyCue(i);
+    if (mediaEl.readyState >= 1) mediaEl.currentTime = seconds;
+    else pendingSeekTo = seconds;
+  }
+  if (mediaEl) {
+    mediaEl.addEventListener("loadedmetadata", () => {
+      if (pendingSeekTo !== null) { mediaEl.currentTime = pendingSeekTo; pendingSeekTo = null; }
+    });
+    mediaEl.addEventListener("timeupdate", () => {
+      if (pendingSeekTo !== null || mediaEl.seeking) return;
+      const i = segmentAt(mediaEl.currentTime);
+      if (i !== activeIndex) applyCue(i);
+    });
+    mediaEl.addEventListener("error", () => {
+      const err = document.querySelector(".rv-media-error");
+      if (err) err.hidden = false;
+      mediaEl.hidden = true;
+    });
+    segEls.forEach((el) => {
+      const go = () => seek(parseFloat(el.dataset.start));
+      el.addEventListener("click", go);
+      el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    });
+    const mediaPane = $("rv-media");
+    if (mediaPane) mediaPane.addEventListener("keydown", (e) => {
+      if (e.key === " " && e.target === mediaPane) { e.preventDefault(); if (mediaEl.paused) mediaEl.play(); else mediaEl.pause(); }
+    });
+    if (pendingSeek !== null) mediaEl.addEventListener("loadedmetadata", () => seek(pendingSeek), { once: true });
+  }
+
+  /* ---- quiz: page-local, nothing stored ---- */
+  document.querySelectorAll(".rv-quiz form").forEach((form) => {
+    const questions = Array.from(form.querySelectorAll(".rv-q"));
+    function grade(q) {
+      const chosen = q.querySelector("input:checked");
+      const fb = q.querySelector(".rv-q-feedback");
+      if (!chosen) { q.classList.remove("rv-right", "rv-wrong"); fb.hidden = true; return null; }
+      const right = chosen.value === q.dataset.answer;
+      q.classList.toggle("rv-right", right);
+      q.classList.toggle("rv-wrong", !right);
+      fb.textContent = right ? "Correct." : "Not quite. Try another answer.";
+      fb.hidden = false;
+      return right;
+    }
+    questions.forEach((q) => q.addEventListener("change", () => grade(q)));
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const results = questions.map(grade);
+      const answered = results.filter((r) => r !== null).length;
+      const correct = results.filter((r) => r === true).length;
+      const score = form.querySelector(".rv-quiz-score");
+      score.textContent = answered < questions.length
+        ? correct + " of " + questions.length + " correct so far; " + (questions.length - answered) + " unanswered."
+        : correct + " of " + questions.length + " correct.";
+      score.hidden = false;
+    });
+  });
+
+  window.RV = { data, openPanel, setTheme, boxLines, clearBox, pin, showAnchor, applyHash, applyCue, seek, activeSegment,
                 get pinned() { return pinned; }, get boxed() { return boxed; },
                 setCueBox(r) { cueBox = r; }, get pendingSeek() { return pendingSeek; } };
-  /* Task 13 appends media and quiz below this line. */
 })();
