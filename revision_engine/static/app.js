@@ -57,6 +57,98 @@
     });
   }
 
-  window.RV = { data, openPanel, setTheme };
-  /* Tasks 12 and 13 append anchors, variants, fragments, media, and quiz below this line. */
+  /* ---- code boxes ---- */
+  const codeBody = $("rv-code-body");
+  const lines = codeBody ? Array.from(codeBody.querySelectorAll(".rv-line")) : [];
+  let boxed = null;          // {start, end} currently drawn
+  let pinned = null;         // anchor name pinned by click, or null
+  let cueBox = null;         // {start, end} from the active narration segment, or null
+
+  function clearBox() {
+    lines.forEach((l) => l.classList.remove("rv-boxed", "rv-box-start", "rv-box-end"));
+    boxed = null;
+  }
+  function boxLines(start, end, opts) {
+    clearBox();
+    for (let n = start; n <= end; n++) {
+      const el = lines[n - 1];
+      if (!el) continue;
+      el.classList.add("rv-boxed");
+      if (n === start) el.classList.add("rv-box-start");
+      if (n === end) el.classList.add("rv-box-end");
+    }
+    boxed = { start, end };
+    if (!opts || opts.scroll !== false) {
+      const first = lines[start - 1];
+      if (first && codeBody) {
+        const top = first.offsetTop - codeBody.clientHeight * 0.3;
+        codeBody.scrollTo({ top: Math.max(0, top), behavior: opts && opts.instant ? "auto" : "smooth" });
+      }
+    }
+  }
+  function anchorRange(name) { return data.anchors[name] || null; }
+  function showAnchor(name, opts) {
+    const r = anchorRange(name);
+    if (r) boxLines(r.start, r.end, opts);
+    return !!r;
+  }
+  function restore() {
+    if (pinned && showAnchor(pinned, { scroll: false })) return;
+    if (cueBox) { boxLines(cueBox.start, cueBox.end, { scroll: false }); return; }
+    clearBox();
+  }
+  function pin(name) {
+    pinned = name;
+    document.querySelectorAll(".rv-anchor.rv-pinned, .rv-svg-anchor.rv-pinned").forEach((el) => el.classList.remove("rv-pinned"));
+    body.classList.toggle("rv-pinned", !!name);
+    if (name) {
+      document.querySelectorAll('[data-anchor="' + name + '"]').forEach((el) => el.classList.add("rv-pinned"));
+      showAnchor(name);
+      if (history.replaceState) history.replaceState(null, "", "#" + name);
+    } else {
+      if (history.replaceState) history.replaceState(null, "", location.pathname + location.search);
+      restore();
+    }
+  }
+
+  /* anchor phrases in the lesson and anchor nodes in diagrams */
+  document.querySelectorAll("[data-anchor]").forEach((el) => {
+    const name = el.dataset.anchor;
+    el.addEventListener("mouseenter", () => showAnchor(name));
+    el.addEventListener("focus", () => showAnchor(name));
+    el.addEventListener("mouseleave", restore);
+    el.addEventListener("blur", restore);
+    el.addEventListener("click", (e) => { e.preventDefault(); pin(pinned === name ? null : name); });
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pin(pinned === name ? null : name); } });
+  });
+
+  /* variants jump list */
+  document.querySelectorAll(".rv-variant").forEach((b) => b.addEventListener("click", () => pin(b.dataset.anchor)));
+
+  /* URL fragment: #anchor-name pins, #t=12.5 seeks (Task 13 reads pendingSeek) */
+  let pendingSeek = null;
+  function applyHash() {
+    const h = decodeURIComponent(location.hash.replace(/^#/, ""));
+    if (!h) return;
+    if (/^t=/.test(h)) { pendingSeek = parseFloat(h.slice(2)) || 0; return; }
+    if (anchorRange(h)) pin(h);
+  }
+
+  /* keyboard */
+  document.addEventListener("keydown", (e) => {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === "Escape") { pin(null); return; }
+    if (e.key === "[") { const a = document.querySelector(".rv-prev"); if (a) location.href = a.href; }
+    if (e.key === "]") { const a = document.querySelector(".rv-next"); if (a) location.href = a.href; }
+  });
+
+  /* initial state: fragment wins, else the lesson's start anchor */
+  applyHash();
+  if (!pinned && data.start) showAnchor(data.start, { instant: true });
+  window.addEventListener("hashchange", applyHash);
+
+  window.RV = { data, openPanel, setTheme, boxLines, clearBox, pin, showAnchor, applyHash,
+                get pinned() { return pinned; }, get boxed() { return boxed; },
+                setCueBox(r) { cueBox = r; }, get pendingSeek() { return pendingSeek; } };
+  /* Task 13 appends media and quiz below this line. */
 })();
