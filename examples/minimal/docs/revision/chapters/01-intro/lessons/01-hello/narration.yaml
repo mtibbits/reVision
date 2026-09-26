@@ -1,0 +1,9 @@
+segments:
+  - text: This program adds two numbers. The helper function takes two integers.
+    show: add-fn
+  - text: It returns their sum on a single line.
+    show: add-expr
+  - text: The entry point calls the helper once, then prints the total.
+    show: [main-fn, call-site]
+    diagram: flow
+    node: main-fn

@@ -1,0 +1,8 @@
+digraph flow {
+  rankdir=LR;
+  node [shape=box, fontname="Helvetica"];
+  main [label="main()", id="main-fn"];
+  add  [label="add(a, b)", id="add-fn"];
+  out  [label="printf", id="printf-node"];
+  main -> add -> main -> out;
+}

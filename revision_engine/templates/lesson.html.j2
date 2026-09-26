@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ m.lesson_title }} · {{ m.site_title }}</title>
+<link rel="stylesheet" href="{{ m.root }}{{ m.assets['tokens.css'] }}">
+<link rel="stylesheet" href="{{ m.root }}{{ m.assets['styles.css'] }}">
+</head>
+<body class="rv" data-panel="">
+<nav class="rv-rail" aria-label="Views">
+  <button class="rv-rail-btn" data-panel="curriculum" title="Curriculum" aria-label="Curriculum">☰</button>
+  <button class="rv-rail-btn" data-panel="variants" title="Variants" aria-label="Variants">≣</button>
+  <span class="rv-rail-spacer"></span>
+  <button class="rv-rail-btn" data-panel="settings" title="Settings" aria-label="Settings">⚙</button>
+</nav>
+<aside class="rv-panel" id="rv-panel" hidden>
+  <section class="rv-panel-view" data-view="curriculum" hidden>
+    <h2>{{ m.site_title }}</h2>
+    {% for ch in m.nav %}
+    <h3>{{ ch.title }}</h3>
+    <ol>
+      {% for le in ch.lessons %}
+      <li{% if le.current %} class="rv-current"{% endif %}><a href="{{ m.root }}{{ le.href }}">{{ le.title }}</a></li>
+      {% endfor %}
+    </ol>
+    {% endfor %}
+  </section>
+  <section class="rv-panel-view" data-view="variants" hidden>
+    <h2>Variants</h2>
+    {% if m.variants %}
+    <ul>
+      {% for v in m.variants %}
+      <li><button class="rv-variant" data-anchor="{{ v.name }}">{{ v.label }} <small>line {{ v.start }}</small></button></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p>This lesson defines no variants.</p>{% endif %}
+  </section>
+  <section class="rv-panel-view" data-view="settings" hidden>
+    <h2>Settings</h2>
+    <p>Theme</p>
+    <div class="rv-theme-row">
+      <button class="rv-theme" data-theme="auto">System</button>
+      <button class="rv-theme" data-theme="light">Light</button>
+      <button class="rv-theme" data-theme="dark">Dark</button>
+    </div>
+  </section>
+</aside>
+<main class="rv-main">
+  <section class="rv-code" id="rv-code" aria-label="Source code">
+    <header class="rv-code-head">
+      <code class="rv-file">{{ m.file_path }}</code>
+      <a class="rv-commit" href="{{ m.file_url }}" target="_blank" rel="noopener" title="Open this file at this commit">@ {{ m.commit_short }} ↗</a>
+    </header>
+    <div class="rv-code-body" id="rv-code-body">{{ m.code_html|safe }}</div>
+  </section>
+  <div class="rv-splitter" id="rv-splitter" role="separator" aria-orientation="vertical" aria-label="Resize panes" tabindex="0"></div>
+  <section class="rv-right">
+    <article class="rv-lesson" id="rv-lesson">
+      <p class="rv-crumb">{{ m.chapter_title }}</p>
+      {{ m.lesson_html|safe }}
+      <nav class="rv-pager">
+        {% if m.prev_href %}<a class="rv-prev" href="{{ m.root }}{{ m.prev_href }}">← Previous</a>{% else %}<span></span>{% endif %}
+        {% if m.next_href %}<a class="rv-next" href="{{ m.root }}{{ m.next_href }}">Next →</a>{% endif %}
+      </nav>
+    </article>
+    <section class="rv-media" id="rv-media"{% if not m.media_url %} hidden{% endif %} aria-label="Narration">
+      {% if m.media_url %}
+      {% if m.media_kind == 'video' %}
+      <video id="rv-media-el" controls preload="metadata" src="{{ m.media_url }}"></video>
+      {% else %}
+      <audio id="rv-media-el" controls preload="metadata" src="{{ m.media_url }}"></audio>
+      {% endif %}
+      <ol class="rv-transcript" id="rv-transcript">
+        {% for s in m.cues or [] %}
+        <li class="rv-seg" data-index="{{ loop.index0 }}" data-start="{{ s.start }}" data-end="{{ s.end }}" tabindex="0">{{ s.text }}</li>
+        {% endfor %}
+      </ol>
+      <p class="rv-media-error" hidden>Narration unavailable.</p>
+      {% endif %}
+    </section>
+  </section>
+</main>
+<script type="application/json" id="rv-data">{{ rv_data_json|safe }}</script>
+<script src="{{ m.root }}{{ m.assets['app.js'] }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+chapters:
+  - slug: intro
+    title: Introduction
+    lessons:
+      - slug: hello
+        title: Adding two numbers
+        path: chapters/01-intro/lessons/01-hello
+      - slug: quiet
+        title: The same file, no narration
+        path: chapters/01-intro/lessons/02-quiet
