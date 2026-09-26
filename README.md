@@ -33,6 +33,10 @@ Revision control, revisited.
 | `rv2 serve` | Builds to a temp folder, serves on localhost, rebuilds on change. |
 | `rv2 narrate LESSON --model voice.onnx` | Synthesizes `narration.yaml` with Piper into audio plus `cues.json`. Commit both. |
 
+For `narrate`, `pip install piper-tts` and download a voice (`.onnx` plus its `.onnx.json`) from
+[rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices); the example lesson uses
+`en_US-lessac-medium`. `--silent` writes a silent placeholder track with plausible timings when Piper is unavailable.
+
 `revision` is an alias for `rv2`.
 
 ## Writing a lesson

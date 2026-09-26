@@ -1,4 +1,11 @@
-"""Regenerate examples/minimal narration audio and cues with the deterministic silent voice."""
+"""Regenerate examples/minimal narration audio and cues with the deterministic silent voice.
+
+The committed example audio is real speech from Piper (en_US-lessac-medium), produced with
+    rv2 narrate examples/minimal/docs/revision/chapters/01-intro/lessons/01-hello --model <voice>.onnx
+This script is the fallback for a machine without Piper: it writes silence with plausible timings
+so the build, golden, and browser tests still have a seekable file. Regenerate the golden manifest
+after either (RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py).
+"""
 
 from pathlib import Path
 
