@@ -30,6 +30,7 @@ class RenderContext:
     report: Report
     where: str
     lesson_file: str
+    line_offset: int = 0  # lines preceding the body in lesson.md (front matter), for file-relative error lines
 
 
 @dataclass
@@ -40,8 +41,9 @@ class RenderedLesson:
     quiz_count: int = 0
 
 
-def _line(token: Token, parent_line: int) -> int:
-    return token.map[0] + 1 if token.map else parent_line
+def _line(token: Token, fallback: int, ctx: RenderContext) -> int:
+    body_line = token.map[0] + 1 if token.map else fallback
+    return body_line + ctx.line_offset
 
 
 def _link_text(children: list[Token], start: int) -> str:
@@ -131,7 +133,7 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
     def core_rewrite(state) -> None:
         for block in state.tokens:
             if block.type == "inline" and block.children:
-                _rewrite_links(block.children, _line(block, 1), ctx, out)
+                _rewrite_links(block.children, _line(block, 1, ctx), ctx, out)
                 for child in block.children:
                     if child.type == "image":
                         child.map = block.map
@@ -159,7 +161,7 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
         tok = tokens[idx]
         if tok.info.strip() == "quiz":
             out.quiz_count += 1
-            return _quiz_html(tok.content, _line(tok, 1), ctx)
+            return _quiz_html(tok.content, _line(tok, 1, ctx), ctx)
         return default_fence(tokens, idx, options, env)
 
     def image(self, tokens, idx, options, env):
@@ -167,7 +169,7 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
         src = tok.attrGet("src") or ""
         if src.endswith(".dot"):
             stem = posixpath.splitext(posixpath.basename(src))[0]
-            line = _line(tok, 1)
+            line = _line(tok, 1, ctx)
             if stem not in ctx.diagrams:
                 raise BuildError(f"{ctx.where}:{line}: diagram {stem!r} ({src}) not found")
             if stem not in out.used_diagrams:

@@ -55,6 +55,12 @@
       if (e.key === "ArrowLeft") setCodeWidth(cur - 24);
       if (e.key === "ArrowRight") setCodeWidth(cur + 24);
     });
+    /* A width saved on a wide window must not squeeze the lesson to nothing on a narrower one. */
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 900 && document.documentElement.style.getPropertyValue("--rv-code-w").endsWith("px")) {
+        setCodeWidth($("rv-code").getBoundingClientRect().width);
+      }
+    });
   }
 
   /* ---- code boxes ---- */
@@ -246,7 +252,7 @@
     });
   });
 
-  window.RV = { data, openPanel, setTheme, boxLines, clearBox, pin, showAnchor, applyHash, applyCue, seek, activeSegment,
+  window.RV = { data, openPanel, setTheme, setCodeWidth, boxLines, clearBox, pin, showAnchor, applyHash, applyCue, seek, activeSegment,
                 get pinned() { return pinned; }, get boxed() { return boxed; },
                 setCueBox(r) { cueBox = r; }, get pendingSeek() { return pendingSeek; } };
 })();

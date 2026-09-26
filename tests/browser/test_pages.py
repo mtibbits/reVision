@@ -101,6 +101,17 @@ def test_narrow_layout_stacks(page, site_url):
     assert lesson["y"] >= code["y"] + code["height"] - 1
 
 
+def test_splitter_reclamps_when_window_shrinks(page, site_url):
+    page.set_viewport_size({"width": 1400, "height": 800})
+    page.goto(site_url + "intro/hello/")
+    page.wait_for_function("window.RV !== undefined")
+    page.evaluate("window.RV.setCodeWidth(1100)")
+    assert page.locator("#rv-code").bounding_box()["width"] > 1000
+    page.set_viewport_size({"width": 1000, "height": 800})
+    page.wait_for_timeout(100)
+    assert page.locator("#rv-lesson").bounding_box()["width"] > 200
+
+
 def test_theme_toggle_sets_attribute(hello):
     hello.click('.rv-rail-btn[data-panel="settings"]')
     hello.click('.rv-theme[data-theme="dark"]')

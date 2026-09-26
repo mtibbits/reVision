@@ -30,6 +30,12 @@ def test_required_keys(tmp_path):
         load_lesson(p, "L/lesson.md")
 
 
+def test_body_line_is_first_file_line_after_front_matter(tmp_path):
+    p = tmp_path / "lesson.md"
+    p.write_text("---\ntitle: T\nfile: f\nsummary: S\n---\n# first body line\n", encoding="utf-8")
+    assert load_lesson(p, "x").body_line == 6
+
+
 def test_summary_defaults_empty(tmp_path):
     p = tmp_path / "lesson.md"
     p.write_text("---\ntitle: T\nfile: f\n---\n", encoding="utf-8")

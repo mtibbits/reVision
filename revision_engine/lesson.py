@@ -19,6 +19,7 @@ class LessonDoc:
     media: str | None
     voice: str | None
     body: str
+    body_line: int = 1  # 1-based line number in lesson.md where the body starts
 
 
 def _opt_str(m: dict, key: str, where: str) -> str | None:
@@ -50,6 +51,7 @@ def load_lesson(path: Path, where: str) -> LessonDoc:
         if not isinstance(meta.get(key), str) or not meta[key]:
             raise BuildError(f"{where}: front matter key {key!r} is required")
     body = text[end + 5 :]
+    body_line = text[: end + 5].count("\n") + 1
     return LessonDoc(
         title=meta["title"],
         summary=_opt_str(meta, "summary", where) or "",
@@ -58,4 +60,5 @@ def load_lesson(path: Path, where: str) -> LessonDoc:
         media=_opt_str(meta, "media", where),
         voice=_opt_str(meta, "voice", where),
         body=body,
+        body_line=body_line,
     )

@@ -29,6 +29,11 @@ def test_unknown_anchor_is_error_with_line():
         render_markdown("a\n\nsee [x](@nope)\n", ctx())
 
 
+def test_line_offset_shifts_error_lines_to_file_numbering():
+    with pytest.raises(BuildError, match=r"L/lesson\.md:7: unknown anchor 'nope'"):
+        render_markdown("a\n\nsee [x](@nope)\n", ctx(line_offset=4))
+
+
 def test_anchor_in_other_file_rejected():
     with pytest.raises(BuildError, match=r"anchor 'other' resolves in 'z\.h' but this lesson shows 'k\.h'"):
         render_markdown("[x](@other)\n", ctx())

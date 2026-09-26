@@ -87,6 +87,52 @@ def test_start_anchor_must_exist(example_copy, tmp_path):
         build(example_copy, output=tmp_path / "out", commit=FIXED)
 
 
+def test_anchor_in_other_file_rejected_at_build(example_copy, tmp_path):
+    anchors = example_copy / "docs/revision/chapters/01-intro/lessons/02-quiet/anchors.yaml"
+    anchors.write_text(
+        anchors.read_text(encoding="utf-8") + "other:\n  file: docs/revision/curriculum.yaml\n  match: 'chapters:'\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        BuildError,
+        match=r"02-quiet/anchors\.yaml: anchor 'other' resolves in 'docs/revision/curriculum\.yaml' but this lesson shows 'src/hello\.c'",
+    ):
+        build(example_copy, output=tmp_path / "out", commit=FIXED)
+
+
+def test_lesson_error_line_numbers_count_front_matter(example_copy, tmp_path):
+    md = example_copy / "docs/revision/chapters/01-intro/lessons/02-quiet/lesson.md"
+    md.write_text("---\ntitle: T\nfile: src/hello.c\n---\n# T\n\nsee [x](@nope)\n", encoding="utf-8")
+    with pytest.raises(BuildError, match=r"02-quiet/lesson\.md:7: unknown anchor 'nope'"):
+        build(example_copy, output=tmp_path / "out", commit=FIXED)
+
+
+def test_refuses_to_clear_folder_not_written_by_rv2(example_copy, tmp_path):
+    out = tmp_path / "precious"
+    out.mkdir()
+    (out / "keep.txt").write_text("mine")
+    with pytest.raises(BuildError, match="exists and was not written by rv2"):
+        build(example_copy, output=out, commit=FIXED)
+    assert (out / "keep.txt").read_text() == "mine"
+
+
+def test_rebuild_over_previous_output_is_allowed(example_copy, tmp_path):
+    out = tmp_path / "out"
+    build(example_copy, output=out, commit=FIXED)
+    build(example_copy, output=out, commit=FIXED)
+    assert (out / "site.json").is_file()
+
+
+def test_media_path_must_stay_inside_lesson(example_copy, tmp_path):
+    md = example_copy / "docs/revision/chapters/01-intro/lessons/02-quiet/lesson.md"
+    md.write_text(
+        md.read_text(encoding="utf-8").replace("file: src/hello.c\n", "file: src/hello.c\nmedia: ../01-hello/media/narration.wav\n"),
+        encoding="utf-8",
+    )
+    with pytest.raises(BuildError, match=r"02-quiet: media path .* must be a relative path inside the lesson folder"):
+        build(example_copy, output=tmp_path / "out", commit=FIXED)
+
+
 def test_refuses_to_clear_repository_root(example_copy):
     with pytest.raises(BuildError, match="output folder must be inside the repository and not the repository itself"):
         build(example_copy, output=example_copy, commit=FIXED)

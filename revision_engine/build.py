@@ -80,6 +80,13 @@ def _build_lesson(cfg: ProjectConfig, chapter: Chapter, ref: LessonRef, report: 
     files = sorted({doc.file} | {s.file for s in specs.values()})
     sources = {f: read_source(cfg.root, f) for f in files}
     anchors = resolve_all(specs, sources)
+    # Version one shows one file per lesson. Every consumer of the anchor set (fragments,
+    # variants, cues, diagram nodes) would otherwise box foreign line numbers onto this file.
+    for name, a in anchors.items():
+        if a.file != doc.file:
+            raise BuildError(
+                f"{where}/anchors.yaml: anchor {name!r} resolves in {a.file!r} but this lesson shows {doc.file!r}"
+            )
     if doc.start is not None and doc.start not in anchors:
         raise BuildError(f"{where}/lesson.md: start anchor {doc.start!r} is not defined in anchors.yaml")
 
@@ -97,6 +104,7 @@ def _build_lesson(cfg: ProjectConfig, chapter: Chapter, ref: LessonRef, report: 
         report=report,
         where=f"{where}/lesson.md",
         lesson_file=doc.file,
+        line_offset=doc.body_line - 1,
     )
     rendered = render_markdown(doc.body, ctx)
 
@@ -117,8 +125,13 @@ def _build_lesson(cfg: ProjectConfig, chapter: Chapter, ref: LessonRef, report: 
         if cues_path.is_file():
             cues = load_cues(cues_path, f"{where}/cues.json")["segments"]
 
-    if media is not None and not (ref.path / media).is_file():
-        raise BuildError(f"{where}: media file {media!r} not found")
+    if media is not None:
+        media_path = (ref.path / media).resolve()
+        lesson_root = ref.path.resolve()
+        if Path(media).is_absolute() or lesson_root not in media_path.parents:
+            raise BuildError(f"{where}: media path {media!r} must be a relative path inside the lesson folder")
+        if not media_path.is_file():
+            raise BuildError(f"{where}: media file {media!r} not found")
     for i, seg in enumerate(cues or [], start=1):
         for name in seg.get("show", []):
             if name not in anchors:
@@ -187,6 +200,11 @@ def build(
         return BuildResult(output=output, pages=[], report=report, commit=commit)
 
     if output.exists():
+        if any(output.iterdir()) and not (output / "site.json").is_file():
+            raise BuildError(
+                f"output folder {output} exists and was not written by rv2 (no site.json); "
+                "delete it yourself or choose another --output"
+            )
         shutil.rmtree(output)
     output.mkdir(parents=True)
     assets = write_assets(output, token_css())
