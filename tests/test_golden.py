@@ -29,7 +29,7 @@ def test_minimal_matches_golden(minimal_example, tmp_path):
     current = {"graphviz": graphviz_version(), "files": tree_hashes(out)}
     if os.environ.get("RV_UPDATE_GOLDEN"):
         MANIFEST.parent.mkdir(exist_ok=True)
-        MANIFEST.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        MANIFEST.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         pytest.skip("golden manifest updated")
     if not MANIFEST.is_file():
         pytest.fail("tests/golden/minimal.json missing; run with RV_UPDATE_GOLDEN=1")
