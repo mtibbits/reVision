@@ -104,3 +104,50 @@ def test_load_cues_validates_shape(tmp_path):
     p.write_text('{"media": "m", "text_hash": "h", "segments": "nope"}', encoding="utf-8")
     with pytest.raises(BuildError, match=r"L/cues\.json: 'segments' must be a list"):
         load_cues(p, "L/cues.json")
+
+
+from revision_engine.narration import resolve_voice_model  # noqa: E402
+
+
+def _lesson(tmp_path, front_voice=None, project_voice=None):
+    root = tmp_path / "repo"
+    lesson = root / "docs/revision/chapters/c/lessons/l"
+    lesson.mkdir(parents=True)
+    fm = "---" + chr(10) + "title: T" + chr(10) + "file: f" + chr(10)
+    if front_voice:
+        fm += f"voice: {front_voice}" + chr(10)
+    fm += "---" + chr(10)
+    (lesson / "lesson.md").write_text(fm, encoding="utf-8")
+    cfg = "site:" + chr(10) + "  title: T" + chr(10) + "repo:" + chr(10) + "  url: u" + chr(10) + "  host: github" + chr(10)
+    if project_voice:
+        cfg += "narration:" + chr(10) + f"  voice: {project_voice}" + chr(10)
+    (root / "revision.yaml").write_text(cfg, encoding="utf-8")
+    return lesson
+
+
+def test_voice_resolution_order(tmp_path, monkeypatch):
+    voices = tmp_path / "voices"
+    voices.mkdir()
+    for v in ("cli", "front", "proj"):
+        (voices / f"{v}.onnx").write_bytes(b"x")
+        (voices / f"{v}.onnx.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("RV2_VOICES", str(voices))
+    lesson = _lesson(tmp_path, front_voice="front", project_voice="proj")
+    assert resolve_voice_model(lesson, "cli", None) == ("cli", voices / "cli.onnx")
+    assert resolve_voice_model(lesson, None, None) == ("front", voices / "front.onnx")
+    lesson2 = _lesson(tmp_path / "b", project_voice="proj")
+    assert resolve_voice_model(lesson2, None, None) == ("proj", voices / "proj.onnx")
+
+
+def test_explicit_model_wins_and_names_voice_from_stem(tmp_path):
+    model = tmp_path / "en_US-x-low.onnx"
+    model.write_bytes(b"x")
+    lesson = _lesson(tmp_path, front_voice="front")
+    assert resolve_voice_model(lesson, None, model) == ("en_US-x-low", model)
+
+
+def test_missing_model_names_searched_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("RV2_VOICES", str(tmp_path / "nowhere"))
+    lesson = _lesson(tmp_path, front_voice="ghost")
+    with pytest.raises(BuildError, match=r"voice 'ghost': no model at .*nowhere.*ghost[.]onnx"):
+        resolve_voice_model(lesson, None, None)

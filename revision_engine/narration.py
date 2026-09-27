@@ -10,6 +10,7 @@ import difflib
 import hashlib
 import io
 import json
+import os
 import shutil
 import subprocess
 import wave
@@ -19,7 +20,9 @@ from typing import Any, Protocol
 
 import yaml
 
+from revision_engine.config import DEFAULT_VOICE
 from revision_engine.errors import BuildError
+from revision_engine.lesson import load_lesson
 
 DEFAULT_PAUSE = 0.4
 
@@ -211,3 +214,43 @@ def check_cues(n: Narration, cues: dict, where: str) -> None:
         f"{where}: narration.yaml changed since cues.json was generated; "
         f"rerun 'rv2 narrate' for this lesson.\n{diff}"
     )
+
+
+def _project_voice(lesson_dir: Path) -> str | None:
+    """The ``narration.voice`` of the first revision.yaml found walking up from the lesson."""
+    resolved = lesson_dir.resolve()
+    for parent in [resolved, *resolved.parents]:
+        cfg = parent / "revision.yaml"
+        if cfg.is_file():
+            data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+            narration = data.get("narration") if isinstance(data, dict) else None
+            voice = narration.get("voice") if isinstance(narration, dict) else None
+            return voice if isinstance(voice, str) else None
+    return None
+
+
+def resolve_voice_model(lesson_dir: Path, cli_voice: str | None, cli_model: Path | None) -> tuple[str, Path]:
+    """Pick the voice name and Piper model for ``rv2 narrate``.
+
+    Name: --voice, then the lesson's front matter, then the project's narration.voice, then the
+    default. Model: --model if given, else ``<voice>.onnx`` in $RV2_VOICES or ~/piper-voices.
+    """
+    if cli_model is not None:
+        if not cli_model.is_file():
+            raise BuildError(f"piper voice model not found: {cli_model}")
+        return cli_voice or cli_model.name.removesuffix(".onnx"), cli_model
+    voice = cli_voice
+    if voice is None and (lesson_dir / "lesson.md").is_file():
+        voice = load_lesson(lesson_dir / "lesson.md", f"{lesson_dir.name}/lesson.md").voice
+    if voice is None:
+        voice = _project_voice(lesson_dir)
+    if voice is None:
+        voice = DEFAULT_VOICE
+    voices_dir = Path(os.environ.get("RV2_VOICES") or Path.home() / "piper-voices")
+    model = voices_dir / f"{voice}.onnx"
+    if not model.is_file():
+        raise BuildError(
+            f"voice {voice!r}: no model at {model}. Download <voice>.onnx and .onnx.json from "
+            "https://huggingface.co/rhasspy/piper-voices into that folder, or pass --model."
+        )
+    return voice, model

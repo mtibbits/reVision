@@ -142,3 +142,12 @@ def test_requires_commit_when_not_git(example_copy, tmp_path, monkeypatch):
     monkeypatch.setattr("revision_engine.build.git_commit", lambda root: None)
     with pytest.raises(BuildError, match="not a git repository; pass --commit"):
         build(example_copy, output=tmp_path / "out")
+
+
+def test_summary_becomes_meta_description(example_copy, tmp_path):
+    out = tmp_path / "out"
+    build(example_copy, output=out, commit=FIXED)
+    page = (out / "intro" / "hello" / "index.html").read_text(encoding="utf-8")
+    assert '<meta name="description" content="One helper function, one call, one print.">' in page
+    quiet = (out / "intro" / "quiet" / "index.html").read_text(encoding="utf-8")
+    assert 'name="description"' not in quiet
