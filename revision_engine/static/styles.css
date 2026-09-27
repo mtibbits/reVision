@@ -62,8 +62,8 @@ body.rv {
 .rv-theme-row { display: flex; gap: 6px; }
 
 /* Main two-pane area */
-.rv-main { display: grid; grid-template-columns: var(--rv-code-w) 6px minmax(0, 1fr); min-width: 0; height: 100vh; }
-.rv-code-pane { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--rv-line); tab-size: 4; }
+.rv-main { display: grid; grid-template-columns: var(--rv-code-w) 6px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; height: 100vh; }
+.rv-code-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--rv-line); tab-size: 4; }
 .rv-code-head { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--rv-line); background: var(--rv-bg-2); font-size: 13px; }
 .rv-file { font-family: var(--rv-mono); }
 .rv-commit { color: var(--rv-muted); text-decoration: none; white-space: nowrap; }
