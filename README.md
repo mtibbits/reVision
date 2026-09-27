@@ -11,7 +11,7 @@ Revision control, revisited.
 ## Add reVision to a repository
 
 1. Install the engine. Until it is on PyPI, pin a release tag:
-   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.1.0"`.
+   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.1.1"`.
    Graphviz (`dot`) must be on the PATH for diagrams.
 2. Create `revision.yaml` at the repository root:
    ```yaml
@@ -23,6 +23,7 @@ Revision control, revisited.
 3. Create `docs/revision/curriculum.yaml` and one lesson folder holding `lesson.md`
    and `anchors.yaml`. Copy `examples/minimal/docs/revision/` from this repository to start.
 4. `rv2 check` to validate, `rv2 serve` to preview, `rv2 build` to write `public/`.
+   `--root` must be the repository's git root; the code pane's "open at commit" link is built from it.
 
 ## Commands
 
@@ -31,11 +32,13 @@ Revision control, revisited.
 | `rv2 build` | Writes the site into the output folder. No network. Same commit, same bytes. |
 | `rv2 check` | Runs every validation without writing. Use it as a pre-commit hook. |
 | `rv2 serve` | Builds to a temp folder, serves on localhost, rebuilds on change. |
-| `rv2 narrate LESSON --model voice.onnx` | Synthesizes `narration.yaml` with Piper into audio plus `cues.json`. Commit both. |
+| `rv2 narrate LESSON [--model voice.onnx]` | Synthesizes `narration.yaml` with Piper into audio plus `cues.json`. Commit both. |
 
 For `narrate`, `pip install piper-tts` and download a voice (`.onnx` plus its `.onnx.json`) from
 [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices); the example lesson uses
-`en_US-lessac-medium`. `--silent` writes a silent placeholder track with plausible timings when Piper is unavailable.
+`en_US-lessac-medium`. Without `--model` the voice comes from the lesson's `voice`, then the project's
+`narration.voice`, and the model is `<voice>.onnx` in `$RV2_VOICES` or `~/piper-voices`. `--silent` writes a
+silent placeholder track with plausible timings when Piper is unavailable.
 
 `revision` is an alias for `rv2`.
 
@@ -46,6 +49,8 @@ For `narrate`, `pip install piper-tts` and download a voice (`.onnx` plus its `.
 - `anchors.yaml` names code regions. Each anchor uses one form: `from`/`to` (a line containing
   `from`, then the first later line matching the `to` regex), `match` (one line), or
   `lines: 88-92`. Add `variant: true` and a `label` to list it in the Variants panel.
+- `within: <anchor>` scopes `match`, `from` and `to` to another anchor's lines, for files where the
+  same body appears twice (aligned and unaligned variants).
 - In the body, `[phrase](@anchor)` boxes a region, `[name](!intrinsic)` links a SIMD intrinsic to
   its vendor page (a bare `` `name` `` in inline code auto-links too), `![Alt](diagrams/x.dot)`
   inlines a Graphviz diagram (give a node `id="anchor-name"` to make it hover and click like a
