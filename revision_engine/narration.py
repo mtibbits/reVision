@@ -174,7 +174,7 @@ def narrate(lesson_dir: Path, synth: Synthesizer, voice: str, media_name: str = 
     _write_wav(lesson_dir / "media" / media_name, rate, bytes(pcm))
     cues = {
         "media": f"media/{media_name}",
-        "voice": n.voice or voice,
+        "voice": voice,
         "text_hash": text_hash(n),
         "segments": cues_segments,
     }
@@ -232,14 +232,17 @@ def _project_voice(lesson_dir: Path) -> str | None:
 def resolve_voice_model(lesson_dir: Path, cli_voice: str | None, cli_model: Path | None) -> tuple[str, Path]:
     """Pick the voice name and Piper model for ``rv2 narrate``.
 
-    Name: --voice, then the lesson's front matter, then the project's narration.voice, then the
-    default. Model: --model if given, else ``<voice>.onnx`` in $RV2_VOICES or ~/piper-voices.
+    Name: --voice, then narration.yaml's ``voice``, then the lesson's front matter, then the
+    project's narration.voice, then the default. Model: --model if given, else ``<voice>.onnx``
+    in $RV2_VOICES or ~/piper-voices. The returned name is what cues.json records.
     """
     if cli_model is not None:
         if not cli_model.is_file():
             raise BuildError(f"piper voice model not found: {cli_model}")
         return cli_voice or cli_model.name.removesuffix(".onnx"), cli_model
     voice = cli_voice
+    if voice is None and (lesson_dir / "narration.yaml").is_file():
+        voice = load_narration(lesson_dir / "narration.yaml", f"{lesson_dir.name}/narration.yaml").voice
     if voice is None and (lesson_dir / "lesson.md").is_file():
         voice = load_lesson(lesson_dir / "lesson.md", f"{lesson_dir.name}/lesson.md").voice
     if voice is None:
