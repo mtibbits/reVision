@@ -23,7 +23,7 @@ SRC = SourceFile(
 
 
 def spec(**kw):
-    base = dict(name="n", file="k.h", from_=None, to=None, match=None, lines=None, variant=False, label="n")
+    base = dict(name="n", file="k.h", from_=None, to=None, match=None, lines=None, variant=False, label="n", within=None)
     base.update(kw)
     return AnchorSpec(**base)
 
@@ -105,3 +105,62 @@ def test_resolve_all_preserves_order_and_uses_right_file():
 def test_resolve_all_unknown_file():
     with pytest.raises(BuildError, match="anchor 'z' refers to file 'zz.h' which is not loaded"):
         resolve_all({"z": spec(name="z", file="zz.h", match="x")}, {"k.h": SRC})
+
+
+TWIN = SourceFile(
+    path="k.h",
+    text="",
+    lines=(
+        "static inline void f_u(void)",  # 1
+        "{",  # 2
+        "    x = fma(a, b, x);",  # 3
+        "}",  # 4
+        "static inline void f_a(void)",  # 5
+        "{",  # 6
+        "    x = fma(a, b, x);",  # 7
+        "}",  # 8
+    ),
+)
+
+
+def test_within_restricts_match_to_enclosing_anchor():
+    specs = {
+        "f-u": spec(name="f-u", from_="void f_u(", to=r"^}"),
+        "f-a": spec(name="f-a", from_="void f_a(", to=r"^}"),
+        "fma-a": spec(name="fma-a", match="x = fma(a, b, x);", within="f-a"),
+    }
+    out = resolve_all(specs, {"k.h": TWIN})
+    assert (out["fma-a"].start, out["fma-a"].end) == (7, 7)
+
+
+def test_within_from_to_stay_inside_bounds():
+    specs = {
+        "f-u": spec(name="f-u", from_="void f_u(", to=r"^}"),
+        "body-u": spec(name="body-u", from_="{", to=r"^}", within="f-u"),
+    }
+    out = resolve_all(specs, {"k.h": TWIN})
+    assert (out["body-u"].start, out["body-u"].end) == (2, 4)
+
+
+def test_within_to_cannot_escape_range():
+    specs = {
+        "f-u": spec(name="f-u", from_="void f_u(", to=r"^}"),
+        "bad": spec(name="bad", from_="}", to=r"void f_a", within="f-u"),
+    }
+    with pytest.raises(BuildError, match=r"no line after line 4 within 'f-u' matches"):
+        resolve_all(specs, {"k.h": TWIN})
+
+
+def test_within_unknown_or_forward_reference_is_error():
+    with pytest.raises(BuildError, match=r"anchor 'z' is within 'nope', which is not defined earlier in anchors\.yaml"):
+        resolve_all({"z": spec(name="z", match="x", within="nope")}, {"k.h": TWIN})
+    specs = {"z": spec(name="z", match="{", within="f-u"), "f-u": spec(name="f-u", from_="void f_u(", to=r"^}")}
+    with pytest.raises(BuildError, match="not defined earlier"):
+        resolve_all(specs, {"k.h": TWIN})
+
+
+def test_load_anchors_reads_within(tmp_path):
+    p = tmp_path / "anchors.yaml"
+    p.write_text("outer:" + chr(10) + "  from: a" + chr(10) + "  to: b" + chr(10) + "inner:" + chr(10) + "  match: c" + chr(10) + "  within: outer" + chr(10), encoding="utf-8")
+    specs = load_anchors(p, default_file="k.h", where="x")
+    assert specs["inner"].within == "outer" and specs["outer"].within is None
