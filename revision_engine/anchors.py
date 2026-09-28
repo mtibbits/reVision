@@ -24,6 +24,7 @@ class AnchorSpec:
     lines: tuple[int, int] | None
     variant: bool
     label: str
+    within: str | None = None
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,7 @@ def load_anchors(path: Path, default_file: str, where: str) -> dict[str, AnchorS
             raise BuildError(f"{where}: anchor {name!r} must use exactly one of from/to, match, lines")
         if "from" in body and "to" not in body:
             raise BuildError(f"{where}: anchor {name!r} has 'from' but no 'to'")
-        for key in ("from", "to", "match", "file", "label"):
+        for key in ("from", "to", "match", "file", "label", "within"):
             if key in body and not isinstance(body[key], str):
                 raise BuildError(f"{where}: anchor {name!r}: {key} must be a string")
         if "to" in body:
@@ -94,39 +95,51 @@ def load_anchors(path: Path, default_file: str, where: str) -> dict[str, AnchorS
             lines=_parse_lines(body["lines"], name, where) if "lines" in body else None,
             variant=variant,
             label=body.get("label", name),
+            within=body.get("within"),
         )
     return specs
 
 
-def _single_line(needle: str, source: SourceFile, spec: AnchorSpec, what: str) -> int:
-    hits = [i + 1 for i, line in enumerate(source.lines) if needle in line]
+def _scope(spec: AnchorSpec) -> str:
+    return f" within {spec.within!r}" if spec.within else ""
+
+
+def _single_line(needle: str, source: SourceFile, spec: AnchorSpec, what: str, bounds: tuple[int, int]) -> int:
+    lo, hi = bounds
+    hits = [i + 1 for i in range(lo - 1, hi) if needle in source.lines[i]]
     if not hits:
-        raise BuildError(f"anchor {spec.name!r} in {source.path}: no line contains {needle!r} ({what})")
+        raise BuildError(f"anchor {spec.name!r} in {source.path}: no line contains {needle!r}{_scope(spec)} ({what})")
     if len(hits) > 1:
         listing = "; ".join(f"line {n}: {source.lines[n - 1].strip()}" for n in hits)
         raise BuildError(
-            f"anchor {spec.name!r} in {source.path}: {what} {needle!r} matches {len(hits)} lines, "
+            f"anchor {spec.name!r} in {source.path}: {what} {needle!r} matches {len(hits)} lines{_scope(spec)}, "
             f"need exactly one: {listing}"
         )
     return hits[0]
 
 
-def resolve(spec: AnchorSpec, source: SourceFile) -> Anchor:
+def resolve(spec: AnchorSpec, source: SourceFile, bounds: tuple[int, int] | None = None) -> Anchor:
+    """Resolve one spec; ``bounds`` (1-based, inclusive) limits the search to an enclosing anchor."""
     n = len(source.lines)
+    lo, hi = bounds or (1, n)
     if spec.lines is not None:
         start, end = spec.lines
         if end > n:
             raise BuildError(f"anchor {spec.name!r} in {source.path}: lines {start}-{end} exceed file length {n}")
+        if bounds and (start < lo or end > hi):
+            raise BuildError(
+                f"anchor {spec.name!r} in {source.path}: lines {start}-{end} fall outside {spec.within!r} ({lo}-{hi})"
+            )
     elif spec.match is not None:
-        start = end = _single_line(spec.match, source, spec, "match")
+        start = end = _single_line(spec.match, source, spec, "match", (lo, hi))
     else:
         assert spec.from_ is not None and spec.to is not None
-        start = _single_line(spec.from_, source, spec, "from")
+        start = _single_line(spec.from_, source, spec, "from", (lo, hi))
         pattern = re.compile(spec.to)
-        end = next((i + 1 for i in range(start, n) if pattern.search(source.lines[i])), None)
+        end = next((i + 1 for i in range(start, hi) if pattern.search(source.lines[i])), None)
         if end is None:
             raise BuildError(
-                f"anchor {spec.name!r} in {source.path}: no line after line {start} matches to={spec.to!r}"
+                f"anchor {spec.name!r} in {source.path}: no line after line {start}{_scope(spec)} matches to={spec.to!r}"
             )
     return Anchor(name=spec.name, file=source.path, start=start, end=end, variant=spec.variant, label=spec.label)
 
@@ -136,5 +149,15 @@ def resolve_all(specs: dict[str, AnchorSpec], sources: dict[str, SourceFile]) ->
     for name, spec in specs.items():
         if spec.file not in sources:
             raise BuildError(f"anchor {name!r} refers to file {spec.file!r} which is not loaded")
-        out[name] = resolve(spec, sources[spec.file])
+        bounds = None
+        if spec.within is not None:
+            if spec.within not in out:
+                raise BuildError(
+                    f"anchor {name!r} is within {spec.within!r}, which is not defined earlier in anchors.yaml"
+                )
+            outer = out[spec.within]
+            if outer.file != spec.file:
+                raise BuildError(f"anchor {name!r} is within {spec.within!r} but they name different files")
+            bounds = (outer.start, outer.end)
+        out[name] = resolve(spec, sources[spec.file], bounds)
     return out

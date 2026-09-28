@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "revision-engine"
-version = "0.1.0"
+version = "0.1.1"
 description = "reVision: a static-site build tool for teaching code by example."
 readme = "README.md"
 license = "MIT"

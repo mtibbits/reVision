@@ -32,8 +32,8 @@ def _parser() -> argparse.ArgumentParser:
 
     n = sub.add_parser("narrate", help="synthesize a lesson's narration.yaml into audio + cues.json")
     n.add_argument("lesson_dir", type=Path)
-    n.add_argument("--model", type=Path, help="path to a Piper voice model (.onnx)")
-    n.add_argument("--voice", help="voice name recorded in cues.json (default: model file stem)")
+    n.add_argument("--model", type=Path, help="path to a Piper voice model (.onnx); default: <voice>.onnx in $RV2_VOICES or ~/piper-voices")
+    n.add_argument("--voice", help="voice name (default: the lesson's voice, then the project's narration.voice)")
     n.add_argument("--silent", action="store_true", help="use the deterministic silent voice (fixtures and tests)")
     n.add_argument("--mp3", action="store_true", help="also transcode to MP3 with ffmpeg and point cues at it")
     return p
@@ -71,17 +71,17 @@ def _cmd_serve(args) -> int:
     return 0
 
 
-def _cmd_narrate(args, parser: argparse.ArgumentParser) -> int:
+def _cmd_narrate(args) -> int:
     from revision_engine.narration import PiperSynthesizer, SilentSynthesizer, narrate
 
     if args.silent:
         synth = SilentSynthesizer()
         voice = args.voice or "silent-fixture"
-    elif args.model:
-        synth = PiperSynthesizer(args.model)
-        voice = args.voice or args.model.stem
     else:
-        parser.error("narrate needs --model PATH (a Piper voice) or --silent")
+        from revision_engine.narration import resolve_voice_model
+
+        voice, model = resolve_voice_model(args.lesson_dir, args.voice, args.model)
+        synth = PiperSynthesizer(model)
     cues = narrate(args.lesson_dir, synth, voice=voice)
     if args.mp3:
         _transcode_mp3(args.lesson_dir, cues)
@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "serve":
             return _cmd_serve(args)
         if args.command == "narrate":
-            return _cmd_narrate(args, parser)
+            return _cmd_narrate(args)
     except BuildError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

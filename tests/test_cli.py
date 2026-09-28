@@ -50,8 +50,10 @@ def test_narrate_silent_regenerates_cues(minimal_example, tmp_path):
     assert (lesson / "cues.json").is_file()
 
 
-def test_narrate_requires_model_or_silent(minimal_example, capsys):
-    lesson = minimal_example / "docs/revision/chapters/01-intro/lessons/01-hello"
-    with pytest.raises(SystemExit) as e:
-        main(["narrate", str(lesson)])
-    assert e.value.code == 2 and "--model" in capsys.readouterr().err
+def test_narrate_without_model_reports_missing_voice_file(minimal_example, tmp_path, monkeypatch, capsys):
+    src = tmp_path / "m"
+    shutil.copytree(minimal_example, src)
+    monkeypatch.setenv("RV2_VOICES", str(tmp_path / "none"))
+    lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
+    assert main(["narrate", str(lesson)]) == 1
+    assert "voice 'en_US-lessac-medium': no model at" in capsys.readouterr().err

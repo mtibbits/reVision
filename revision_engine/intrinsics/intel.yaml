@@ -8,6 +8,10 @@ names:
   - _mm_mul_ps
   - _mm_add_ps
   - _mm_add_ss
+  - _mm_addsub_ps
+  - _mm_or_ps
+  - _mm_moveldup_ps
+  - _mm_movehdup_ps
   - _mm_hadd_ps
   - _mm_dp_ps
   - _mm_shuffle_ps
@@ -20,12 +24,19 @@ names:
   - _mm256_storeu_ps
   - _mm256_mul_ps
   - _mm256_add_ps
+  - _mm256_addsub_ps
+  - _mm256_shuffle_ps
+  - _mm256_moveldup_ps
+  - _mm256_movehdup_ps
   - _mm256_fmadd_ps
+  - _mm256_fmaddsub_ps
   - _mm256_hadd_ps
   - _mm256_extractf128_ps
   - _mm256_castps256_ps128
   - _mm512_setzero_ps
   - _mm512_load_ps
   - _mm512_loadu_ps
+  - _mm512_store_ps
+  - _mm512_storeu_ps
   - _mm512_fmadd_ps
   - _mm512_reduce_add_ps
