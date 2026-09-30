@@ -230,10 +230,10 @@
     function grade(q) {
       const chosen = q.querySelector("input:checked");
       const fb = q.querySelector(".rv-q-feedback");
-      if (!chosen) { q.classList.remove("rv-right", "rv-wrong"); fb.hidden = true; return null; }
+      if (!chosen) { q.classList.remove("rv-correct", "rv-incorrect"); fb.hidden = true; return null; }
       const right = chosen.value === q.dataset.answer;
-      q.classList.toggle("rv-right", right);
-      q.classList.toggle("rv-wrong", !right);
+      q.classList.toggle("rv-correct", right);
+      q.classList.toggle("rv-incorrect", !right);
       fb.textContent = right ? "Correct." : "Not quite. Try another answer.";
       fb.hidden = false;
       return right;
