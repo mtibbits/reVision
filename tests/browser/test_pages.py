@@ -77,6 +77,16 @@ def test_quiz_grades_and_forgets(hello):
     assert hello.evaluate("document.querySelectorAll('.rv-quiz input:checked').length") == 0
 
 
+def test_quiz_feedback_adds_one_line_whether_right_or_wrong(hello):
+    q = hello.locator('.rv-q[data-answer="0"]')
+    hello.check('input[name="q0"][value="1"]')
+    wrong = q.bounding_box()["height"]
+    hello.check('input[name="q0"][value="0"]')
+    assert "Correct" in q.locator(".rv-q-feedback").inner_text()
+    assert q.evaluate("el => getComputedStyle(el).display") == "block"
+    assert q.bounding_box()["height"] == wrong
+
+
 def test_lesson_without_media_has_no_pane_and_no_errors(page, site_url):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
