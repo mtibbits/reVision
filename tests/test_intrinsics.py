@@ -67,8 +67,7 @@ def test_riscv_table_has_24_expected_rows():
 
 
 def test_riscv_every_row_resolves_exactly():
-    mismatched = {n: lookup(n) for n, u in RVV_URLS.items() if lookup(n) != u}
-    assert mismatched == {}
+    assert {n: lookup(n) for n in RVV_URLS} == RVV_URLS
 
 
 def test_riscv_one_name_per_directory_class():
