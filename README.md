@@ -55,7 +55,8 @@ silent placeholder track with plausible timings when Piper is unavailable.
   its vendor documentation (Intel and Arm names to their intrinsic's page, RISC-V Vector names to
   their section of the v1.0 intrinsic reference; a bare `` `name` `` in inline code auto-links
   too), `![Alt](diagrams/x.dot)` inlines a Graphviz diagram (give a node `id="anchor-name"` to
-  make it hover and click like a phrase), and a fenced block with the language `quiz` adds a page-local knowledge check.
+  make it hover and click like a phrase), and a fenced block with the language `quiz` adds a
+  page-local knowledge check.
 - `narration.yaml` is a list of segments: `text` plus what to `show`, and optionally a `diagram`
   and `node` to bring into view. Timings are derived by `rv2 narrate`, never typed. If the words
   change and `narrate` is not rerun, `build` fails with the diff.
