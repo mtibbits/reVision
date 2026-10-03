@@ -1,0 +1,28 @@
+# RISC-V Vector C intrinsics, ratified v1.0 reference (riscv-non-isa/riscv-rvv-intrinsic-doc,
+# tag v1.0-ratified). Each name links to the section that lists it as a prototype; the section
+# cannot be derived from the name, so every row carries its full URL. Rows checked 2026-10-03.
+urls:
+  __riscv_vfadd: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html#overloaded-vector-single-width-floating-point-add-subtract"
+  __riscv_vfadd_tu: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/policy_funcs/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html#policy-variant-overloadedvector-single-width-floating-point-add-subtract"
+  __riscv_vfmacc: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html#overloaded-vector-single-width-floating-point-fused-multiply-add"
+  __riscv_vfmacc_tu: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/policy_funcs/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html#policy-variant-overloadedvector-single-width-floating-point-fused-multiply-add"
+  __riscv_vfmul: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html#overloaded-vector-single-width-floating-point-multiply-divide"
+  __riscv_vfmv_f: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/07_vector_permutation_intrinsics.html#overloaded-integer-scalar-move"
+  __riscv_vfmv_s_f_f32m1: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/07_vector_permutation_intrinsics.html#integer-scalar-move"
+  __riscv_vfmv_v_f_f32m2: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/04_vector_floating-point_intrinsics.html#vector-floating-point-move"
+  __riscv_vfmv_v_f_f32m8: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/04_vector_floating-point_intrinsics.html#vector-floating-point-move"
+  __riscv_vfneg: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html#overloaded-vector-single-width-floating-point-add-subtract"
+  __riscv_vfnmsac: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html#overloaded-vector-single-width-floating-point-fused-multiply-add"
+  __riscv_vfredusum: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/05_vector_reduction_operations.html#overloaded-vector-single-width-floating-point-reduction"
+  __riscv_vget_f32m1: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#overloaded-vector-extraction"
+  __riscv_vget_f32m2: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#overloaded-vector-extraction"
+  __riscv_vle32_v_f32m8: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/00_vector_loads_and_stores_intrinsics.html#vector-unit-stride-load"
+  __riscv_vle64_v_u64m4: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/00_vector_loads_and_stores_intrinsics.html#vector-unit-stride-load"
+  __riscv_vlseg2e32_v_f32m2x2: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/01_vector_loads_and_stores_segment_intrinsics.html#vector-unit-stride-segment-load"
+  __riscv_vnsrl: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/02_vector_integer_arithmetic_intrinsics.html#overloaded-vector-narrowing-integer-right-shift"
+  __riscv_vreinterpret_f32m2: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/overloaded_intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#overloaded-reinterpret-cast-conversion"
+  __riscv_vsetvl_e32m2: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#set-vl-and-vtype"
+  __riscv_vsetvl_e32m8: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#set-vl-and-vtype"
+  __riscv_vsetvlmax_e32m1: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#set-vl-to-vlmax-with-specific-vtype"
+  __riscv_vsetvlmax_e32m2: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#set-vl-to-vlmax-with-specific-vtype"
+  __riscv_vsetvlmax_e32m8: "https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/intrinsic_funcs/08_miscellaneous_vector_utility_intrinsics.html#set-vl-to-vlmax-with-specific-vtype"

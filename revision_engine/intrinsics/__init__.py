@@ -7,7 +7,7 @@ from importlib import resources
 
 import yaml
 
-_VENDORS = ("intel", "arm")
+_VENDORS = ("intel", "arm", "riscv")
 
 
 @lru_cache(maxsize=1)
@@ -16,9 +16,13 @@ def _table() -> dict[str, str]:
     for vendor in _VENDORS:
         text = resources.files(__package__).joinpath(f"{vendor}.yaml").read_text(encoding="utf-8")
         data = yaml.safe_load(text)
-        pattern = data["url"]
-        for name in data["names"]:
-            table[name] = pattern.format(name=name)
+        if "names" in data:
+            pattern = data["url"]
+            for name in data["names"]:
+                table[name] = pattern.format(name=name)
+        # Vendors whose page can't be derived from the name carry one explicit URL per name.
+        for name, url in (data.get("urls") or {}).items():
+            table[str(name)] = str(url)
     return table
 
 
