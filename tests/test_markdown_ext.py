@@ -58,6 +58,18 @@ def test_bare_code_autolinks_known_intrinsic_only():
     assert "<code>printf</code>" in out.html
 
 
+def test_bare_code_autolinks_riscv_intrinsic():
+    out = render_markdown("`__riscv_vfmacc_tu` and `__riscv_vfmacc_vv_f32m8`\n", ctx())
+    assert (
+        '<a class="rv-intrinsic" href="https://docs.riscv.org/reference/vector-c-intrinsics/v1.0/'
+        "policy_funcs/overloaded_intrinsic_funcs/04_vector_floating-point_intrinsics.html"
+        '#policy-variant-overloadedvector-single-width-floating-point-fused-multiply-add" '
+        'target="_blank" rel="noopener"><code>__riscv_vfmacc_tu</code></a>'
+    ) in out.html
+    assert "<code>__riscv_vfmacc_vv_f32m8</code>" in out.html
+    assert out.html.count("rv-intrinsic") == 1
+
+
 def test_dot_image_inlines_diagram():
     out = render_markdown("![Call flow](diagrams/flow.dot)\n", ctx())
     assert '<figure class="rv-diagram" id="diagram-flow" data-diagram="flow">' in out.html

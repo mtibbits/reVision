@@ -11,7 +11,7 @@ Revision control, revisited.
 ## Add reVision to a repository
 
 1. Install the engine. Until it is on PyPI, pin a release tag:
-   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.1.2"`.
+   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.1.3"`.
    Graphviz (`dot`) must be on the PATH for diagrams.
 2. Create `revision.yaml` at the repository root:
    ```yaml
@@ -52,9 +52,11 @@ silent placeholder track with plausible timings when Piper is unavailable.
 - `within: <anchor>` scopes `match`, `from` and `to` to another anchor's lines, for files where the
   same body appears twice (aligned and unaligned variants).
 - In the body, `[phrase](@anchor)` boxes a region, `[name](!intrinsic)` links a SIMD intrinsic to
-  its vendor page (a bare `` `name` `` in inline code auto-links too), `![Alt](diagrams/x.dot)`
-  inlines a Graphviz diagram (give a node `id="anchor-name"` to make it hover and click like a
-  phrase), and a fenced block with the language `quiz` adds a page-local knowledge check.
+  its vendor documentation (Intel and Arm names to their intrinsic's page, RISC-V Vector names to
+  their section of the v1.0 intrinsic reference; a bare `` `name` `` in inline code auto-links
+  too), `![Alt](diagrams/x.dot)` inlines a Graphviz diagram (give a node `id="anchor-name"` to
+  make it hover and click like a phrase), and a fenced block with the language `quiz` adds a
+  page-local knowledge check.
 - `narration.yaml` is a list of segments: `text` plus what to `show`, and optionally a `diagram`
   and `node` to bring into view. Timings are derived by `rv2 narrate`, never typed. If the words
   change and `narrate` is not rerun, `build` fails with the diff.
