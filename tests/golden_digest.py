@@ -4,7 +4,9 @@ Every file is hashed byte-for-byte except the inlined `<svg class="rv-svg">` dia
 HTML pages. Each of those is replaced by a digest of its nodes (id, class, data-node,
 data-anchor, `<text>` labels) and edges (title, labels), sorted. Graphviz's layout
 (coordinates, fonts, its own graph and edge ids, emit order) is left out, because the
-engine does not own it.
+engine does not own it. Not compared: graph and cluster labels, and link targets
+(`URL`/`tooltip`). A dot node without an explicit `id=` gets a Graphviz-numbered `nodeN`
+id, which does depend on emit order; the golden example gives every node an id.
 
 Why not pin a Graphviz version in CI instead: Ubuntu's graphviz debs have no upstream
 checksum, Graphviz ships a major release about every six weeks, and text is laid out with

@@ -24,6 +24,7 @@ REQUIRED = f"{REQUIRED_FILE}::test_minimal_matches_golden"
 class _GoldenGate:
     def __init__(self) -> None:
         self.observed: list[str] = []
+        self.message = ""
 
     def pytest_collectreport(self, report: pytest.CollectReport) -> None:
         if report.nodeid == REQUIRED_FILE and report.outcome != "passed":
@@ -42,12 +43,13 @@ class _GoldenGate:
         if session.exitstatus in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED):
             session.exitstatus = pytest.ExitCode.TESTS_FAILED
         seen = ", ".join(self.observed) or "not run"
-        msg = f"RV_REQUIRE_GOLDEN=1: {REQUIRED} must run and pass exactly once; observed: {seen}"
-        reporter = session.config.pluginmanager.get_plugin("terminalreporter")
-        if reporter is not None:
-            reporter.write_line(msg, red=True)
-        else:
-            session.config.get_terminal_writer().line(msg, red=True)
+        self.message = f"RV_REQUIRE_GOLDEN=1: {REQUIRED} must run and pass exactly once; observed: {seen}"
+
+    def pytest_unconfigure(self, config: pytest.Config) -> None:
+        # Printed here, not at sessionfinish, so it comes after pytest's "N passed" line
+        # and is the last line of a red CI log.
+        if self.message:
+            config.get_terminal_writer().line(self.message, red=True)
 
 
 def pytest_configure(config: pytest.Config) -> None:

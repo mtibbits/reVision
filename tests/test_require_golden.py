@@ -4,6 +4,8 @@ Inner runs pass `-p no:playwright`: pytest-playwright errors inside a nested ses
 The inner test file sits at tests/test_golden.py so its nodeid is the one the gate requires.
 """
 
+import os
+
 import pytest
 
 GATE_CONFTEST = 'pytest_plugins = ["tests.require_golden"]\n'
@@ -31,7 +33,15 @@ def test_gate_fails_when_golden_absent(pytester, monkeypatch):
     monkeypatch.setenv("RV_REQUIRE_GOLDEN", "1")
     r = _run(pytester, ABSENT)
     assert r.ret != 0
-    assert "observed: not run" in r.stdout.str()
+    lines = [ln for ln in r.outlines if ln.strip()]
+    assert lines[-1].startswith("RV_REQUIRE_GOLDEN=1") and "observed: not run" in lines[-1]
+
+
+def test_gate_is_wired_into_this_suite(pytestconfig):
+    """tests/conftest.py loads the gate, and on GitHub Actions (CI=true) test.yml's env registers it."""
+    assert pytestconfig.pluginmanager.has_plugin("tests.require_golden")
+    if os.environ.get("CI") == "true":
+        assert pytestconfig.pluginmanager.get_plugin("rv-require-golden") is not None
 
 
 XPASSES = "import pytest\n\n@pytest.mark.xfail\ndef test_minimal_matches_golden():\n    pass\n"
