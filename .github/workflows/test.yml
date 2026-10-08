@@ -6,6 +6,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      RV_REQUIRE_GOLDEN: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -14,4 +16,4 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y graphviz
       - run: python -m pip install -e ".[dev]"
       - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest -v --browser chromium
+      - run: python -m pytest -vv --browser chromium
