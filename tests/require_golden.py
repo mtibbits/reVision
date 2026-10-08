@@ -39,7 +39,8 @@ class _GoldenGate:
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         if self.observed.count("call passed") == 1:
             return
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        if session.exitstatus in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED):
+            session.exitstatus = pytest.ExitCode.TESTS_FAILED
         seen = ", ".join(self.observed) or "not run"
         msg = f"RV_REQUIRE_GOLDEN=1: {REQUIRED} must run and pass exactly once; observed: {seen}"
         reporter = session.config.pluginmanager.get_plugin("terminalreporter")

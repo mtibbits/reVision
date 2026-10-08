@@ -1,9 +1,10 @@
-"""Hash a built site for the golden test, with each diagram reduced to its node structure.
+"""Hash a built site for the golden test, with each diagram reduced to its structure.
 
 Every file is hashed byte-for-byte except the inlined `<svg class="rv-svg">` diagrams in
-HTML pages. Each of those is replaced by a digest of its nodes: id, class, data-node,
-data-anchor and `<text>` labels, sorted. Graphviz's layout (coordinates, fonts, its own
-graph and edge ids, emit order) is left out, because the engine does not own it.
+HTML pages. Each of those is replaced by a digest of its nodes (id, class, data-node,
+data-anchor, `<text>` labels) and edges (title, labels), sorted. Graphviz's layout
+(coordinates, fonts, its own graph and edge ids, emit order) is left out, because the
+engine does not own it.
 
 Why not pin a Graphviz version in CI instead: Ubuntu's graphviz debs have no upstream
 checksum, Graphviz ships a major release about every six weeks, and text is laid out with
@@ -27,6 +28,8 @@ from pathlib import Path
 _SVG_RE = re.compile(r'<svg class="rv-svg".*?</svg>', re.S)
 _G_RE = re.compile(r"<g\b[^>]*>")
 _TEXT_RE = re.compile(r"<text\b[^>]*>(.*?)</text>", re.S)
+_TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S)
+_GROUPS = {"node", "edge", "graph"}
 FIELDS = ("id", "class", "data-node", "data-anchor")
 
 
@@ -36,16 +39,26 @@ def _attr(tag: str, name: str) -> str:
 
 
 def svg_structure(svg: str) -> str:
-    """One line per node `<g>`: id, class, data-node, data-anchor, labels; sorted."""
-    starts = list(_G_RE.finditer(svg))
+    """One line per node and per edge, sorted.
+
+    Node: id, class, data-node, data-anchor, labels. Edge: "edge", its title (`a->b`, from
+    the dot node names) and labels; Graphviz's own `edgeN` id is left out. A group's labels
+    run to the next node, edge or graph group, so a linked node's nested `<g>` is included.
+    """
+    groups = []
+    for m in _G_RE.finditer(svg):
+        kinds = set(_attr(m.group(0), "class").split()) & _GROUPS
+        if kinds:
+            groups.append((m, kinds))
     lines = []
-    for i, m in enumerate(starts):
-        attrs = {f: _attr(m.group(0), f) for f in FIELDS}
-        if "node" not in attrs["class"].split():
-            continue
-        end = starts[i + 1].start() if i + 1 < len(starts) else len(svg)
-        labels = [html.unescape(t) for t in _TEXT_RE.findall(svg, m.end(), end)]
-        lines.append("\t".join([*attrs.values(), "|".join(labels)]))
+    for i, (m, kinds) in enumerate(groups):
+        end = groups[i + 1][0].start() if i + 1 < len(groups) else len(svg)
+        labels = "|".join(html.unescape(t) for t in _TEXT_RE.findall(svg, m.end(), end))
+        if "node" in kinds:
+            lines.append("\t".join([*(_attr(m.group(0), f) for f in FIELDS), labels]))
+        elif "edge" in kinds:
+            title = _TITLE_RE.search(svg, m.end(), end)
+            lines.append("\t".join(["edge", html.unescape(title.group(1)) if title else "", labels]))
     return "\n".join(sorted(lines))
 
 

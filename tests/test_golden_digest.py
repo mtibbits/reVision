@@ -55,6 +55,25 @@ def test_structure_sees_engine_and_author_output():
     assert svg_structure(BASE.replace('id="printf-node"', 'id="puts-node"')) != base
 
 
+def test_structure_sees_edges():
+    base = svg_structure(BASE)
+    assert svg_structure(BASE.replace(EDGE, "")) != base
+    assert svg_structure(BASE.replace("main&#45;&gt;out", "main&#45;&gt;add")) != base
+    labelled = _svg(NODE_A + EDGE.replace("/>\n</g>", '/>\n<text x="1" y="2">calls</text>\n</g>') + NODE_B)
+    assert svg_structure(labelled) != base
+    assert svg_structure(labelled.replace(">calls<", ">returns<")) != svg_structure(labelled)
+
+
+def test_structure_sees_labels_of_linked_nodes():
+    linked = _svg(
+        '<g id="n1" class="node" data-node="n1">\n<title>n</title>\n'
+        '<g id="a_n1"><a xlink:href="https://x" xlink:title="t">\n'
+        '<polygon points="1,2 3,4"/>\n<text x="1" y="2">hello</text>\n</a>\n</g>\n</g>\n'
+    )
+    assert "hello" in svg_structure(linked)
+    assert svg_structure(linked.replace(">hello<", ">bye<")) != svg_structure(linked)
+
+
 def test_structure_unescapes_entities():
     escaped = _svg('<g id="a&#45;b" class="node" data-node="a&#45;b">\n<text>x&#45;&gt;y</text>\n</g>\n')
     plain = _svg('<g id="a-b" class="node" data-node="a-b">\n<text>x->y</text>\n</g>\n')

@@ -34,6 +34,27 @@ def test_gate_fails_when_golden_absent(pytester, monkeypatch):
     assert "observed: not run" in r.stdout.str()
 
 
+XPASSES = "import pytest\n\n@pytest.mark.xfail\ndef test_minimal_matches_golden():\n    pass\n"
+MODULE_SKIP = "import pytest\n\npytest.skip('x', allow_module_level=True)\n\ndef test_minimal_matches_golden():\n    pass\n"
+BROKEN = "import no_such_module_rv\n\ndef test_minimal_matches_golden():\n    pass\n"
+
+
+@pytest.mark.parametrize(("src", "observed"), [(XPASSES, "call xfail/xpass"), (MODULE_SKIP, "collect skipped")])
+def test_gate_fails_on_xpass_and_module_skip(pytester, monkeypatch, src, observed):
+    monkeypatch.setenv("RV_REQUIRE_GOLDEN", "1")
+    r = _run(pytester, src)
+    assert r.ret == pytest.ExitCode.TESTS_FAILED
+    out = r.stdout.str()
+    assert "RV_REQUIRE_GOLDEN=1" in out and observed in out
+
+
+def test_gate_keeps_a_more_specific_exit_code(pytester, monkeypatch):
+    """A collection error already fails the run with its own code; the gate does not turn it into 1."""
+    monkeypatch.setenv("RV_REQUIRE_GOLDEN", "1")
+    r = _run(pytester, BROKEN)
+    assert r.ret == pytest.ExitCode.INTERRUPTED
+
+
 def test_gate_passes_when_golden_passes(pytester, monkeypatch):
     """CONTROL: the gate is not over-eager."""
     monkeypatch.setenv("RV_REQUIRE_GOLDEN", "1")

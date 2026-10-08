@@ -76,9 +76,9 @@ python -m pip install -e ".[dev]" && python -m playwright install chromium
 python -m pytest --browser chromium
 ```
 
-The golden test compares the built example site byte-for-byte, except that each diagram is reduced to its nodes (ids, anchor stamps, labels), so Graphviz layout and fonts do not matter.
-That reduction was verified identical on Graphviz 16.1.0 (Windows) and on Ubuntu's `graphviz` 2.42.2 package (which reports itself as 2.43.0); a Graphviz that changes node ids, anchor stamps or labels fails the test.
-CI installs Ubuntu's `graphviz` package and sets `RV_REQUIRE_GOLDEN=1`, so a skipped or missing golden test fails the job.
+The golden test compares the built example site byte-for-byte, except that each diagram is reduced to its nodes (ids, anchor stamps, labels) and edges (endpoints, labels), so Graphviz layout and fonts do not matter.
+That reduction was verified identical on Graphviz 16.1.0 (Windows) and on Ubuntu 22.04's `graphviz` 2.42.2 package (which reports itself as 2.43.0); a Graphviz that changes node ids, anchor stamps, edges or labels fails the test.
+CI installs Ubuntu's `graphviz` package (2.42.2 on `ubuntu-latest`) and sets `RV_REQUIRE_GOLDEN=1`, so a skipped or missing golden test fails the job.
 After an intentional rendering change, update your venv (`python -m pip install -U -e ".[dev]"`) so Pygments, markdown-it-py and Jinja2 match CI, then regenerate with `RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py`.
 
 ## License
