@@ -4,9 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.require_golden import *  # noqa: F401,F403
-
-pytest_plugins = ["pytester"]
+pytest_plugins = ["pytester", "tests.require_golden"]
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 

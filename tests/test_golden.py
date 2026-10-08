@@ -34,10 +34,10 @@ def test_minimal_matches_golden(minimal_example, tmp_path):
         MANIFEST.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         pytest.skip("golden manifest updated")
     if not MANIFEST.is_file():
-        pytest.fail("tests/golden/minimal.json missing; run with RV_UPDATE_GOLDEN=1")
+        pytest.fail(f"tests/golden/minimal.json missing; run with {REGENERATE}")
     golden = json.loads(MANIFEST.read_text(encoding="utf-8"))
     if set(golden) != {"files"}:
         pytest.fail(f"tests/golden/minimal.json has keys {sorted(golden)}, expected only 'files'; regenerate with {REGENERATE}")
     keys = set(golden["files"]) | set(current["files"])
     diff = {k: (golden["files"].get(k), current["files"].get(k)) for k in keys if golden["files"].get(k) != current["files"].get(k)}
-    assert diff == {}, f"rendering changed for: {sorted(diff)}. If intentional, rerun with RV_UPDATE_GOLDEN=1"
+    assert diff == {}, f"rendering changed for: {sorted(diff)}. If intentional, rerun with {REGENERATE}"

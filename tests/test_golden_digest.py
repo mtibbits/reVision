@@ -2,7 +2,8 @@ import shutil
 
 from revision_engine.build import build
 from tests.golden_digest import golden_hashes, svg_structure
-from tests.test_golden import FIXED
+
+FIXED = "0123456789abcdef0123456789abcdef01234567"
 
 NODE_A = (
     '<g id="main-fn" class="node rv-svg-anchor" data-node="main-fn" data-anchor="main-fn">\n'

@@ -6,8 +6,8 @@ nodeid rather than looking for a skip, because a skip, a module-level skip, a de
 rename or a deletion all mean the same thing: the test did not pass. An xfail or xpass is
 not a pass either.
 
-tests/conftest.py re-exports pytest_configure, and tests/test_require_golden.py loads this
-same module into inner pytester sessions, so the suite and its test share one predicate.
+tests/conftest.py loads it through pytest_plugins, and tests/test_require_golden.py loads
+this same module into inner pytester sessions, so the suite and its test share one predicate.
 Each session gets its own _GoldenGate, so inner sessions do not mix with the outer one.
 """
 
@@ -17,9 +17,8 @@ import os
 
 import pytest
 
-REQUIRED = "tests/test_golden.py::test_minimal_matches_golden"
-
-__all__ = ["pytest_configure"]
+REQUIRED_FILE = "tests/test_golden.py"
+REQUIRED = f"{REQUIRED_FILE}::test_minimal_matches_golden"
 
 
 class _GoldenGate:
@@ -27,7 +26,7 @@ class _GoldenGate:
         self.observed: list[str] = []
 
     def pytest_collectreport(self, report: pytest.CollectReport) -> None:
-        if report.nodeid == REQUIRED.split("::")[0] and report.outcome != "passed":
+        if report.nodeid == REQUIRED_FILE and report.outcome != "passed":
             self.observed.append(f"collect {report.outcome}")
 
     def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
@@ -38,8 +37,6 @@ class _GoldenGate:
 
     @pytest.hookimpl(trylast=True)
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
-        if os.environ.get("RV_REQUIRE_GOLDEN") != "1":
-            return
         if self.observed.count("call passed") == 1:
             return
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
@@ -53,4 +50,5 @@ class _GoldenGate:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    config.pluginmanager.register(_GoldenGate(), "rv-require-golden")
+    if os.environ.get("RV_REQUIRE_GOLDEN") == "1":
+        config.pluginmanager.register(_GoldenGate(), "rv-require-golden")

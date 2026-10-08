@@ -6,7 +6,7 @@ The inner test file sits at tests/test_golden.py so its nodeid is the one the ga
 
 import pytest
 
-GATE_CONFTEST = "from tests.require_golden import *  # noqa: F401,F403\n"
+GATE_CONFTEST = 'pytest_plugins = ["tests.require_golden"]\n'
 SKIPS = "import pytest\n\ndef test_minimal_matches_golden():\n    pytest.skip('x')\n"
 PASSES = "def test_minimal_matches_golden():\n    pass\n"
 ABSENT = "def test_other():\n    pass\n"

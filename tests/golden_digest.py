@@ -40,12 +40,12 @@ def svg_structure(svg: str) -> str:
     starts = list(_G_RE.finditer(svg))
     lines = []
     for i, m in enumerate(starts):
-        tag = m.group(0)
-        if "node" not in _attr(tag, "class").split():
+        attrs = {f: _attr(m.group(0), f) for f in FIELDS}
+        if "node" not in attrs["class"].split():
             continue
         end = starts[i + 1].start() if i + 1 < len(starts) else len(svg)
         labels = [html.unescape(t) for t in _TEXT_RE.findall(svg, m.end(), end)]
-        lines.append("\t".join([*(_attr(tag, f) for f in FIELDS), "|".join(labels)]))
+        lines.append("\t".join([*attrs.values(), "|".join(labels)]))
     return "\n".join(sorted(lines))
 
 
