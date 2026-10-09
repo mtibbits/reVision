@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytest_plugins = ["pytester", "tests.require_golden"]
+
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
 
