@@ -17,6 +17,7 @@ from importlib import metadata
 from pathlib import Path
 
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,9 +27,8 @@ INSTALL_CMD = 'python -m pip install -e ".[dev]" -c ci-constraints-requirements.
 _PIN_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s#]+)")
 
 
-def normalize(name: str) -> str:
-    """PEP 503 name normalization."""
-    return re.sub(r"[-_.]+", "-", name).lower()
+def _pin_error(path: Path, lineno: int, line: str, msg: str) -> ValueError:
+    return ValueError(f"{path.name}:{lineno}: {msg}: {line!r}")
 
 
 def read_pins(path: Path = CONSTRAINTS) -> dict[str, str]:
@@ -38,29 +38,24 @@ def read_pins(path: Path = CONSTRAINTS) -> dict[str, str]:
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-
-        def fail(msg: str) -> ValueError:
-            return ValueError(f"{path.name}:{lineno}: {msg}: {line!r}")
-
         m = _PIN_RE.fullmatch(line)
         if m is None:
-            raise fail("expected name==version")
+            raise _pin_error(path, lineno, line, "expected name==version")
         name, version = m.groups()
-        if name != normalize(name):
-            raise fail(f"write the name as {normalize(name)}")
+        if name != canonicalize_name(name):
+            raise _pin_error(path, lineno, line, f"write the name as {canonicalize_name(name)}")
         if name in pins:
-            raise fail("duplicate pin")
+            raise _pin_error(path, lineno, line, "duplicate pin")
         pins[name] = version
     return pins
 
 
 def pin_mismatches(
     pins: dict[str, str] | None = None,
-    version: Callable[[str], str] | None = None,
+    version: Callable[[str], str] = metadata.version,
 ) -> list[str]:
     """One line per pin whose installed version differs or is missing, in pin order."""
     pins = read_pins() if pins is None else pins
-    version = metadata.version if version is None else version
     mismatches = []
     for name, pinned in pins.items():
         try:
@@ -73,13 +68,18 @@ def pin_mismatches(
     return mismatches
 
 
-def runtime_closure(pyproject: Path = ROOT / "pyproject.toml") -> set[str]:
+def runtime_dependencies() -> set[str]:
+    """Normalized names of pyproject.toml's runtime dependencies."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    return {canonicalize_name(Requirement(d).name) for d in project["dependencies"]}
+
+
+def runtime_closure() -> set[str]:
     """Normalized names of the installed runtime dependencies and theirs, without extras."""
-    project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
-    queue = [Requirement(d).name for d in project["dependencies"]]
+    queue = list(runtime_dependencies())
     seen: set[str] = set()
     while queue:
-        name = normalize(queue.pop(0))
+        name = canonicalize_name(queue.pop())
         if name in seen:
             continue
         seen.add(name)

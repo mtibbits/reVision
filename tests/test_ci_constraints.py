@@ -9,21 +9,21 @@ from __future__ import annotations
 import ast
 import os
 import shlex
-import tomllib
 from importlib.metadata import PackageNotFoundError
 
 import pytest
 import yaml
-from packaging.requirements import Requirement
 
 from tests.ci_pins import (
+    CONSTRAINTS,
     INSTALL_CMD,
     ROOT,
-    normalize,
     pin_mismatches,
     read_pins,
     runtime_closure,
+    runtime_dependencies,
 )
+from tests.require_golden import REQUIRED_FILE
 
 CI_ONLY = pytest.mark.skipif(
     os.environ.get("RV_REQUIRE_GOLDEN") != "1",
@@ -34,10 +34,8 @@ SEPARATORS = {"&&", "||", ";", "|"}
 
 
 def test_pins_cover_the_runtime_dependencies():
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    deps = {normalize(Requirement(d).name) for d in project["dependencies"]}
-    missing = sorted(deps - set(read_pins()))
-    assert not missing, f"runtime dependencies not pinned in ci-constraints-requirements.txt: {missing}"
+    missing = sorted(runtime_dependencies() - set(read_pins()))
+    assert not missing, f"runtime dependencies not pinned in {CONSTRAINTS.name}: {missing}"
 
 
 def test_read_pins_parses_and_rejects(tmp_path):
@@ -87,14 +85,8 @@ def _commands(run: str) -> list[list[str]]:
     return [c for c in commands if c]
 
 
-def _is_pip_install(tokens: list[str]) -> bool:
-    return any(a == "pip" and b == "install" for a, b in zip(tokens, tokens[1:]))
-
-
-def _passes_constraints(tokens: list[str]) -> bool:
-    return any(
-        a == "-c" and b == "ci-constraints-requirements.txt" for a, b in zip(tokens, tokens[1:])
-    )
+def _has_adjacent(tokens: list[str], first: str, second: str) -> bool:
+    return any(a == first and b == second for a, b in zip(tokens, tokens[1:]))
 
 
 def test_test_workflow_installs_with_the_constraints():
@@ -104,13 +96,12 @@ def test_test_workflow_installs_with_the_constraints():
         for job in workflow["jobs"].values()
         for step in job["steps"]
         for tokens in _commands(step.get("run", ""))
-        if _is_pip_install(tokens)
+        if _has_adjacent(tokens, "pip", "install")
     ]
     assert installs, f"no pip install command found in {TEST_WORKFLOW.name}"
     for tokens in installs:
-        assert _passes_constraints(tokens), (
-            f"{TEST_WORKFLOW.name}: {shlex.join(tokens)!r} does not pass "
-            "-c ci-constraints-requirements.txt"
+        assert _has_adjacent(tokens, "-c", CONSTRAINTS.name), (
+            f"{TEST_WORKFLOW.name}: {shlex.join(tokens)!r} does not pass -c {CONSTRAINTS.name}"
         )
 
 
@@ -122,9 +113,9 @@ def test_install_command_is_documented_verbatim():
     stale = [line for line in homes if INSTALL_CMD not in line]
     assert not stale, f"README.md lines without INSTALL_CMD verbatim: {stale}"
     # Parsed, not imported, so test_golden.py is not collected twice.
-    golden = ast.parse((ROOT / "tests" / "test_golden.py").read_text(encoding="utf-8"))
+    golden = ast.parse((ROOT / REQUIRED_FILE).read_text(encoding="utf-8"))
     assert INSTALL_CMD in ast.get_docstring(golden), (
-        "tests/test_golden.py's docstring does not carry INSTALL_CMD verbatim"
+        f"{REQUIRED_FILE}'s docstring does not carry INSTALL_CMD verbatim"
     )
 
 
