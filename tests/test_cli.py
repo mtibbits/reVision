@@ -8,6 +8,7 @@ import pytest
 
 from revision_engine import __version__
 from revision_engine.cli import main
+from revision_engine.config import DEFAULT_VOICE
 
 
 def test_version_flag_prints_version(capsys):
@@ -23,6 +24,7 @@ def test_no_subcommand_prints_help_and_fails(capsys):
 
 
 REPO = Path(__file__).resolve().parents[1]
+PROJECT_VOICE = "en_US-amy-low"
 FIXED = "0123456789abcdef0123456789abcdef01234567"
 
 
@@ -58,10 +60,15 @@ def test_narrate_silent_regenerates_cues(minimal_example, tmp_path):
 def test_narrate_without_model_reports_missing_voice_file(minimal_example, tmp_path, monkeypatch, capsys):
     src = tmp_path / "m"
     shutil.copytree(minimal_example, src)
+    cfg = src / "revision.yaml"
+    text = cfg.read_text(encoding="utf-8")
+    assert text.count("voice: en_US-lessac-medium") == 1
+    cfg.write_text(text.replace("voice: en_US-lessac-medium", f"voice: {PROJECT_VOICE}"), encoding="utf-8", newline="\n")
+    assert PROJECT_VOICE != DEFAULT_VOICE
     monkeypatch.setenv("RV2_VOICES", str(tmp_path / "none"))
     lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
     assert main(["narrate", str(lesson)]) == 1
-    assert "voice 'en_US-lessac-medium': no model at" in capsys.readouterr().err
+    assert f"voice '{PROJECT_VOICE}': no model at" in capsys.readouterr().err
 
 
 def test_narrate_reports_malformed_project_yaml_without_traceback(minimal_example, tmp_path):
