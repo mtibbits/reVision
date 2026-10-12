@@ -42,6 +42,9 @@ def test_read_pins_parses_and_rejects(tmp_path):
     good = tmp_path / "good.txt"
     good.write_text("# header\n\njinja2==3.1\npygments==2.21.0\n", encoding="utf-8")
     assert read_pins(good) == {"jinja2": "3.1", "pygments": "2.21.0"}
+    bom = tmp_path / "bom.txt"
+    bom.write_text("﻿jinja2==3.1\n", encoding="utf-8")
+    assert read_pins(bom) == {"jinja2": "3.1"}
 
     cases = [
         ("pygments>=2.21\n", "expected name==version"),
@@ -115,7 +118,7 @@ def test_install_command_is_documented_verbatim():
     assert not stale, f"README.md lines without INSTALL_CMD verbatim: {stale}"
     # Parsed, not imported, so test_golden.py is not collected twice.
     golden = ast.parse((ROOT / REQUIRED_FILE).read_text(encoding="utf-8"))
-    assert INSTALL_CMD in ast.get_docstring(golden), (
+    assert INSTALL_CMD in (ast.get_docstring(golden) or ""), (
         f"{REQUIRED_FILE}'s docstring does not carry INSTALL_CMD verbatim"
     )
 
@@ -130,5 +133,5 @@ def test_installed_closure_equals_the_pins():
     closure, pinned = runtime_closure(), set(read_pins())
     assert closure == pinned, (
         f"installed but not pinned: {sorted(closure - pinned)}; "
-        f"pinned but not installed: {sorted(pinned - closure)}"
+        f"pinned but not in the runtime closure: {sorted(pinned - closure)}"
     )

@@ -34,7 +34,7 @@ def _pin_error(path: Path, lineno: int, line: str, msg: str) -> ValueError:
 def read_pins(path: Path = CONSTRAINTS) -> dict[str, str]:
     """Map each pinned name to its version, in file order; reject anything but `name==version`."""
     pins: dict[str, str] = {}
-    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for lineno, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
