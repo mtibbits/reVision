@@ -116,7 +116,11 @@ def test_test_workflow_installs_with_the_constraints():
 
 def test_install_command_is_documented_verbatim():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert INSTALL_CMD in readme, "README.md does not carry INSTALL_CMD verbatim"
+    # Every home of the command, so one stale copy cannot hide behind a correct one.
+    homes = [line for line in readme.splitlines() if "pip install -e" in line]
+    assert homes, "README.md has no `pip install -e` command"
+    stale = [line for line in homes if INSTALL_CMD not in line]
+    assert not stale, f"README.md lines without INSTALL_CMD verbatim: {stale}"
     # Parsed, not imported, so test_golden.py is not collected twice.
     golden = ast.parse((ROOT / "tests" / "test_golden.py").read_text(encoding="utf-8"))
     assert INSTALL_CMD in ast.get_docstring(golden), (
