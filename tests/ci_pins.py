@@ -32,13 +32,16 @@ def _pin_error(path: Path, lineno: int, line: str, msg: str) -> ValueError:
 
 
 def read_pins(path: Path = CONSTRAINTS) -> dict[str, str]:
-    """Map each pinned name to its version, in file order; reject anything but `name==version`."""
+    """Map each pinned name to its version, in file order; reject anything but `name==version`.
+
+    Inline comments after a pin are rejected on purpose: one pin per line, nothing else.
+    """
     pins: dict[str, str] = {}
     for lineno, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        m = _PIN_RE.fullmatch(line)
+        m = _PIN_RE.fullmatch(stripped)
         if m is None:
             raise _pin_error(path, lineno, line, "expected name==version")
         name, version = m.groups()

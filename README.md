@@ -79,7 +79,7 @@ python -m pytest --browser chromium
 The golden test compares the built example site byte-for-byte, except that each diagram is reduced to its nodes (ids, anchor stamps, labels) and edges (endpoints, labels), so Graphviz layout and fonts do not matter.
 That reduction was verified identical on Graphviz 16.1.0 (Windows) and on Ubuntu 22.04's `graphviz` 2.42.2 package (which reports itself as 2.43.0); a Graphviz that changes node ids, anchor stamps, edges, or node and edge labels fails the test (graph and cluster labels and link targets are not compared).
 CI runs on the pinned `ubuntu-24.04` image, installs its `graphviz` package (2.42.2) and sets `RV_REQUIRE_GOLDEN=1`, so a skipped or missing golden test fails the job; the gate's message is the last line of the log.
-<!-- tests/test_ci_constraints.py checks that this command equals INSTALL_CMD in tests/ci_pins.py. -->
+<!-- tests/test_ci_constraints.py checks that every README line installing .[dev], here and in the fence above, contains INSTALL_CMD from tests/ci_pins.py. -->
 CI installs the runtime dependencies whose output the golden test hashes (Pygments, markdown-it-py, Jinja2, PyYAML and their dependencies) at the versions pinned in `ci-constraints-requirements.txt`; `pyproject.toml` keeps floors only, so `pip install revision-engine` is unaffected. To match CI locally, run `python -m pip install -e ".[dev]" -c ci-constraints-requirements.txt`; after an intentional rendering change, regenerate with `RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py`. `.github/dependabot.yml` asks Dependabot to propose pin bumps; a bump that changes output reddens the golden test on its own PR, where the manifest is regenerated after review.
 
 ## License

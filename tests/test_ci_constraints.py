@@ -43,7 +43,7 @@ def test_read_pins_parses_and_rejects(tmp_path):
     good.write_text("# header\n\njinja2==3.1\npygments==2.21.0\n", encoding="utf-8")
     assert read_pins(good) == {"jinja2": "3.1", "pygments": "2.21.0"}
     bom = tmp_path / "bom.txt"
-    bom.write_text("﻿jinja2==3.1\n", encoding="utf-8")
+    bom.write_text("\ufeffjinja2==3.1\n", encoding="utf-8")
     assert read_pins(bom) == {"jinja2": "3.1"}
 
     cases = [
@@ -112,8 +112,9 @@ def test_test_workflow_installs_with_the_constraints():
 def test_install_command_is_documented_verbatim():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     # Every home of the command, so one stale copy cannot hide behind a correct one.
-    homes = [line for line in readme.splitlines() if "pip install -e" in line]
-    assert homes, "README.md has no `pip install -e` command"
+    # Keyed on the install target, not the flags, so `-U -e` or `--editable` cannot slip by.
+    homes = [line for line in readme.splitlines() if '".[dev]"' in line]
+    assert homes, 'README.md has no `".[dev]"` install command'
     stale = [line for line in homes if INSTALL_CMD not in line]
     assert not stale, f"README.md lines without INSTALL_CMD verbatim: {stale}"
     # Parsed, not imported, so test_golden.py is not collected twice.
