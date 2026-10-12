@@ -1,7 +1,7 @@
 """CI's constraints file pins every package whose output the golden test hashes.
 
 The static tests run everywhere. The two runtime tests run only under RV_REQUIRE_GOLDEN=1
-(CI), so a contributor following the README's plain install stays green.
+(CI), so a contributor who has not installed CI's pins stays green.
 """
 
 from __future__ import annotations
@@ -47,6 +47,7 @@ def test_read_pins_parses_and_rejects(tmp_path):
         ("pygments>=2.21\n", "expected name==version"),
         ("Pygments==2.21.0\n", "write the name as pygments"),
         ("pygments==2.21.0\npygments==2.21.0\n", "duplicate pin"),
+        ("pygments==2.21.*\n", "invalid version"),
     ]
     for i, (text, msg) in enumerate(cases):
         bad = tmp_path / f"bad{i}.txt"

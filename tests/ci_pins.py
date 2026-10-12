@@ -18,7 +18,7 @@ from pathlib import Path
 
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 ROOT = Path(__file__).resolve().parent.parent
 CONSTRAINTS = ROOT / "ci-constraints-requirements.txt"
@@ -46,6 +46,10 @@ def read_pins(path: Path = CONSTRAINTS) -> dict[str, str]:
             raise _pin_error(path, lineno, line, f"write the name as {canonicalize_name(name)}")
         if name in pins:
             raise _pin_error(path, lineno, line, "duplicate pin")
+        try:
+            Version(version)
+        except InvalidVersion:
+            raise _pin_error(path, lineno, line, "invalid version") from None
         pins[name] = version
     return pins
 
