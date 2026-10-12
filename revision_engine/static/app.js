@@ -134,7 +134,7 @@
   /* URL fragment: #anchor-name pins, #t=12.5 seeks. A fragment that is not valid percent-encoding is ignored. */
   function applyHash() {
     let h;
-    try { h = decodeURIComponent(location.hash.replace(/^#/, "")); } catch (e) { return; /* not valid percent-encoding: ignore */ }
+    try { h = decodeURIComponent(location.hash.replace(/^#/, "")); } catch (e) { return; }
     if (!h) return;
     if (/^t=/.test(h)) { const t = parseFloat(h.slice(2)); if (Number.isFinite(t)) seek(Math.max(0, t)); return; }
     if (anchorRange(h)) pin(h);

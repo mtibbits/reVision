@@ -47,52 +47,53 @@ def test_fragment_pins_on_load(page, site_url):
     assert boxed(page) == [10, 11, 12, 13, 14, 15]
 
 
-def test_malformed_fragment_keeps_page_working(page, site_url):
+def _goto_collecting_errors(page, url):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(site_url + "intro/hello/#%")
+    page.goto(url)
+    return errors
+
+
+def _assert_page_works(page, errors):
     assert errors == []
     assert page.evaluate("typeof window.RV") == "object"
-    assert boxed(page) == [5, 6, 7, 8]
     page.check('input[name="q0"][value="0"]')
     assert "Correct" in page.locator('.rv-q[data-answer="0"] .rv-q-feedback').inner_text()
 
 
-def _wait_at_5_5(page):
+def test_malformed_fragment_keeps_page_working(page, site_url):
+    errors = _goto_collecting_errors(page, site_url + "intro/hello/#%")
+    _assert_page_works(page, errors)
+    assert boxed(page) == [5, 6, 7, 8]
+
+
+def _assert_seeked_to_5_5(page):
     try:
         page.wait_for_function(AT_5_5, timeout=3000)
     except PlaywrightTimeoutError:
         pass  # the assertions below name what went wrong
+    assert page.evaluate("document.getElementById('rv-media-el').currentTime") == pytest.approx(5.5, abs=0.01)
+    assert page.evaluate("window.RV.activeSegment()") == 1
+    assert boxed(page) == [7]
 
 
 def test_fragment_t_seeks_after_load(hello):
     hello.wait_for_function(MEDIA_READY)
     hello.evaluate("location.hash = '#t=5.5'")
-    _wait_at_5_5(hello)
-    assert hello.evaluate("document.getElementById('rv-media-el').currentTime") == pytest.approx(5.5, abs=0.01)
-    assert hello.evaluate("window.RV.activeSegment()") == 1
-    assert boxed(hello) == [7]
+    _assert_seeked_to_5_5(hello)
 
 
 def test_fragment_t_seeks_on_load(page, site_url):
     page.goto(site_url + "intro/hello/#t=5.5")
     page.wait_for_function("window.RV !== undefined")
     page.wait_for_function(MEDIA_READY)
-    _wait_at_5_5(page)
-    assert page.evaluate("document.getElementById('rv-media-el').currentTime") == pytest.approx(5.5, abs=0.01)
-    assert page.evaluate("window.RV.activeSegment()") == 1
-    assert boxed(page) == [7]
+    _assert_seeked_to_5_5(page)
 
 
 def test_non_finite_t_fragment_keeps_page_working(page, site_url):
-    errors = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(site_url + "intro/hello/#t=Infinity")
+    errors = _goto_collecting_errors(page, site_url + "intro/hello/#t=Infinity")
     page.wait_for_function(MEDIA_READY)
-    assert errors == []
-    assert page.evaluate("typeof window.RV") == "object"
-    page.check('input[name="q0"][value="0"]')
-    assert "Correct" in page.locator('.rv-q[data-answer="0"] .rv-q-feedback').inner_text()
+    _assert_page_works(page, errors)
     page.evaluate("window.RV.seek(window.RV.data.cues[0].start + 0.05)")
     assert page.evaluate("window.RV.activeSegment()") == 0
 
