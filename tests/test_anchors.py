@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 
 from revision_engine.anchors import AnchorSpec, load_anchors, resolve, resolve_all
@@ -20,6 +22,10 @@ SRC = SourceFile(
         "}",  # 10
     ),
 )
+
+
+NL = chr(10)
+BS = chr(92)
 
 
 def spec(**kw):
@@ -164,3 +170,19 @@ def test_load_anchors_reads_within(tmp_path):
     p.write_text("outer:" + chr(10) + "  from: a" + chr(10) + "  to: b" + chr(10) + "inner:" + chr(10) + "  match: c" + chr(10) + "  within: outer" + chr(10), encoding="utf-8")
     specs = load_anchors(p, default_file="k.h", where="x")
     assert specs["inner"].within == "outer" and specs["outer"].within is None
+
+
+def test_backslash_file_within_same_file_resolves(tmp_path):
+    p = tmp_path / "anchors.yaml"
+    p.write_text(
+        "f-a:" + NL + "  from: 'void f_a('" + NL + "  to: '^}'" + NL
+        + "fma-a:" + NL + "  match: 'x = fma(a, b, x);'" + NL + "  within: f-a" + NL + "  file: 'src" + BS + "k.h'" + NL,
+        encoding="utf-8",
+    )
+    assert p.read_bytes().count(BS.encode()) == 1
+    specs = load_anchors(p, default_file="src/k.h", where="x")
+    files = {"src/k.h"} | {s.file for s in specs.values()}
+    sources = {f: dataclasses.replace(TWIN, path=f.replace(BS, "/")) for f in files}
+    assert specs["fma-a"].file == "src/k.h"
+    out = resolve_all(specs, sources)
+    assert (out["fma-a"].start, out["fma-a"].end) == (7, 7)
