@@ -14,8 +14,8 @@ OS fonts (Arial on Windows, DejaVu/Liberation on Linux), so layout bytes differ 
 even at one version. The structure was measured identical on Graphviz 16.1.0 (Windows) and
 Ubuntu's 2.42.2 package (reports 2.43.0).
 
-Dependency output (Pygments, markdown-it-py, Jinja2) is still hashed byte-for-byte; their
-floors-only pins are a known gap.
+Dependency output (Pygments, markdown-it-py, Jinja2) is still hashed byte-for-byte; CI pins
+them in ci-constraints-requirements.txt (#18).
 
 Stdlib only, Python 3.10+, so it can be loaded by path where the engine's venv is absent.
 """

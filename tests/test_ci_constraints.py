@@ -6,6 +6,7 @@ The static tests run everywhere. The two runtime tests run only under RV_REQUIRE
 
 from __future__ import annotations
 
+import ast
 import os
 import shlex
 import tomllib
@@ -111,6 +112,16 @@ def test_test_workflow_installs_with_the_constraints():
             f"{TEST_WORKFLOW.name}: {shlex.join(tokens)!r} does not pass "
             "-c ci-constraints-requirements.txt"
         )
+
+
+def test_install_command_is_documented_verbatim():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert INSTALL_CMD in readme, "README.md does not carry INSTALL_CMD verbatim"
+    # Parsed, not imported, so test_golden.py is not collected twice.
+    golden = ast.parse((ROOT / "tests" / "test_golden.py").read_text(encoding="utf-8"))
+    assert INSTALL_CMD in ast.get_docstring(golden), (
+        "tests/test_golden.py's docstring does not carry INSTALL_CMD verbatim"
+    )
 
 
 @CI_ONLY
