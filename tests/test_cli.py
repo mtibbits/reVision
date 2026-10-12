@@ -1,9 +1,14 @@
+import os
 import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
 from revision_engine import __version__
 from revision_engine.cli import main
+from revision_engine.config import DEFAULT_VOICE
 
 
 def test_version_flag_prints_version(capsys):
@@ -18,6 +23,8 @@ def test_no_subcommand_prints_help_and_fails(capsys):
     assert "rv2" in capsys.readouterr().err
 
 
+REPO = Path(__file__).resolve().parents[1]
+PROJECT_VOICE = "en_US-amy-low"
 FIXED = "0123456789abcdef0123456789abcdef01234567"
 
 
@@ -53,7 +60,30 @@ def test_narrate_silent_regenerates_cues(minimal_example, tmp_path):
 def test_narrate_without_model_reports_missing_voice_file(minimal_example, tmp_path, monkeypatch, capsys):
     src = tmp_path / "m"
     shutil.copytree(minimal_example, src)
+    cfg = src / "revision.yaml"
+    text = cfg.read_text(encoding="utf-8")
+    assert text.count("voice: en_US-lessac-medium") == 1
+    cfg.write_text(text.replace("voice: en_US-lessac-medium", f"voice: {PROJECT_VOICE}"), encoding="utf-8", newline="\n")
+    assert PROJECT_VOICE != DEFAULT_VOICE
     monkeypatch.setenv("RV2_VOICES", str(tmp_path / "none"))
     lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
     assert main(["narrate", str(lesson)]) == 1
-    assert "voice 'en_US-lessac-medium': no model at" in capsys.readouterr().err
+    assert f"voice '{PROJECT_VOICE}': no model at" in capsys.readouterr().err
+
+
+def test_narrate_reports_malformed_project_yaml_without_traceback(minimal_example, tmp_path):
+    src = tmp_path / "m"
+    shutil.copytree(minimal_example, src)
+    (src / "revision.yaml").write_text("narration: [unclosed" + chr(10), encoding="utf-8")
+    lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
+    r = subprocess.run(
+        [sys.executable, "-m", "revision_engine.cli", "narrate", str(lesson)],
+        env={**os.environ, "RV2_VOICES": str(tmp_path / "none")},
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+    assert r.returncode == 1
+    assert r.stderr.startswith("error: ")
+    assert "revision.yaml: invalid YAML:" in r.stderr
+    assert "Traceback" not in r.stderr

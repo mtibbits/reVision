@@ -20,7 +20,7 @@ from typing import Any, Protocol
 
 import yaml
 
-from revision_engine.config import DEFAULT_VOICE
+from revision_engine.config import DEFAULT_VOICE, _load_yaml
 from revision_engine.errors import BuildError
 from revision_engine.lesson import load_lesson
 
@@ -222,7 +222,7 @@ def _project_voice(lesson_dir: Path) -> str | None:
     for parent in [resolved, *resolved.parents]:
         cfg = parent / "revision.yaml"
         if cfg.is_file():
-            data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+            data = _load_yaml(cfg)
             narration = data.get("narration") if isinstance(data, dict) else None
             voice = narration.get("voice") if isinstance(narration, dict) else None
             return voice if isinstance(voice, str) else None

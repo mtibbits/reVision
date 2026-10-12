@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 
 from revision_engine.anchors import AnchorSpec, load_anchors, resolve, resolve_all
@@ -20,6 +22,10 @@ SRC = SourceFile(
         "}",  # 10
     ),
 )
+
+
+NL = chr(10)
+BS = chr(92)
 
 
 def spec(**kw):
@@ -159,8 +165,61 @@ def test_within_unknown_or_forward_reference_is_error():
         resolve_all(specs, {"k.h": TWIN})
 
 
+def test_within_lines_inside_parent():
+    specs = {
+        "f-a": spec(name="f-a", from_="void f_a(", to=r"^}"),
+        "body-a": spec(name="body-a", lines=(5, 8), within="f-a"),
+    }
+    out = resolve_all(specs, {"k.h": TWIN})
+    assert (out["body-a"].start, out["body-a"].end) == (5, 8)
+
+
+def test_within_lines_below_parent_is_error():
+    specs = {
+        "f-a": spec(name="f-a", from_="void f_a(", to=r"^}"),
+        "body-a": spec(name="body-a", lines=(3, 6), within="f-a"),
+    }
+    with pytest.raises(BuildError, match=r"anchor 'body-a' in k\.h: lines 3-6 fall outside 'f-a' \(5-8\)"):
+        resolve_all(specs, {"k.h": TWIN})
+
+
+def test_within_lines_above_parent_is_error():
+    specs = {
+        "f-u": spec(name="f-u", from_="void f_u(", to=r"^}"),
+        "body-u": spec(name="body-u", lines=(3, 6), within="f-u"),
+    }
+    with pytest.raises(BuildError, match=r"lines 3-6 fall outside 'f-u' \(1-4\)"):
+        resolve_all(specs, {"k.h": TWIN})
+
+
+def test_within_different_files_is_error():
+    other = SourceFile(path="other.h", text="", lines=("a", "b", "c", "d", "e", "x", "g", "h"))
+    specs = {
+        "f-a": spec(name="f-a", from_="void f_a(", to=r"^}"),
+        "x": spec(name="x", file="other.h", lines=(6, 6), within="f-a"),
+    }
+    with pytest.raises(BuildError, match=r"anchor 'x' is within 'f-a' but they name different files"):
+        resolve_all(specs, {"k.h": TWIN, "other.h": other})
+
+
 def test_load_anchors_reads_within(tmp_path):
     p = tmp_path / "anchors.yaml"
     p.write_text("outer:" + chr(10) + "  from: a" + chr(10) + "  to: b" + chr(10) + "inner:" + chr(10) + "  match: c" + chr(10) + "  within: outer" + chr(10), encoding="utf-8")
     specs = load_anchors(p, default_file="k.h", where="x")
     assert specs["inner"].within == "outer" and specs["outer"].within is None
+
+
+def test_backslash_file_within_same_file_resolves(tmp_path):
+    p = tmp_path / "anchors.yaml"
+    p.write_text(
+        "f-a:" + NL + "  from: 'void f_a('" + NL + "  to: '^}'" + NL
+        + "fma-a:" + NL + "  match: 'x = fma(a, b, x);'" + NL + "  within: f-a" + NL + "  file: 'src" + BS + "k.h'" + NL,
+        encoding="utf-8",
+    )
+    assert p.read_bytes().count(BS.encode()) == 1
+    specs = load_anchors(p, default_file="src/k.h", where="x")
+    files = {"src/k.h"} | {s.file for s in specs.values()}
+    sources = {f: dataclasses.replace(TWIN, path=f.replace(BS, "/")) for f in files}
+    assert specs["fma-a"].file == "src/k.h"
+    out = resolve_all(specs, sources)
+    assert (out["fma-a"].start, out["fma-a"].end) == (7, 7)

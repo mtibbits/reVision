@@ -88,7 +88,7 @@ def load_anchors(path: Path, default_file: str, where: str) -> dict[str, AnchorS
             raise BuildError(f"{where}: anchor {name!r}: variant must be true or false")
         specs[name] = AnchorSpec(
             name=name,
-            file=body.get("file", default_file),
+            file=body.get("file", default_file).replace(chr(92), "/"),
             from_=body.get("from"),
             to=body.get("to"),
             match=body.get("match"),

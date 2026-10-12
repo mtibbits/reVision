@@ -131,12 +131,12 @@
   /* variants jump list */
   document.querySelectorAll(".rv-variant").forEach((b) => b.addEventListener("click", () => pin(b.dataset.anchor)));
 
-  /* URL fragment: #anchor-name pins, #t=12.5 seeks (Task 13 reads pendingSeek) */
-  let pendingSeek = null;
+  /* URL fragment: #anchor-name pins, #t=12.5 seeks. A fragment that is not valid percent-encoding is ignored. */
   function applyHash() {
-    const h = decodeURIComponent(location.hash.replace(/^#/, ""));
+    let h;
+    try { h = decodeURIComponent(location.hash.replace(/^#/, "")); } catch (e) { return; }
     if (!h) return;
-    if (/^t=/.test(h)) { pendingSeek = parseFloat(h.slice(2)) || 0; return; }
+    if (/^t=/.test(h)) { const t = parseFloat(h.slice(2)); if (Number.isFinite(t)) seek(Math.max(0, t)); return; }
     if (anchorRange(h)) pin(h);
   }
 
@@ -147,11 +147,6 @@
     if (e.key === "[") { const a = document.querySelector(".rv-prev"); if (a) location.href = a.href; }
     if (e.key === "]") { const a = document.querySelector(".rv-next"); if (a) location.href = a.href; }
   });
-
-  /* initial state: fragment wins, else the lesson's start anchor */
-  applyHash();
-  if (!pinned && data.start) showAnchor(data.start, { instant: true });
-  window.addEventListener("hashchange", applyHash);
 
   /* ---- media and cues ---- */
   const mediaEl = $("rv-media-el");
@@ -221,8 +216,12 @@
     if (mediaPane) mediaPane.addEventListener("keydown", (e) => {
       if (e.key === " " && e.target === mediaPane) { e.preventDefault(); if (mediaEl.paused) mediaEl.play(); else mediaEl.pause(); }
     });
-    if (pendingSeek !== null) mediaEl.addEventListener("loadedmetadata", () => seek(pendingSeek), { once: true });
   }
+
+  /* initial state: fragment wins, else the lesson's start anchor. Stays below the media section: a #t= fragment calls seek(), which reads mediaEl. */
+  applyHash();
+  if (!pinned && !cueBox && data.start) showAnchor(data.start, { instant: true });
+  window.addEventListener("hashchange", applyHash);
 
   /* ---- quiz: page-local, nothing stored ---- */
   document.querySelectorAll(".rv-quiz form").forEach((form) => {
@@ -254,5 +253,5 @@
 
   window.RV = { data, openPanel, setTheme, setCodeWidth, boxLines, clearBox, pin, showAnchor, applyHash, applyCue, seek, activeSegment,
                 get pinned() { return pinned; }, get boxed() { return boxed; },
-                setCueBox(r) { cueBox = r; }, get pendingSeek() { return pendingSeek; } };
+                setCueBox(r) { cueBox = r; } };
 })();
