@@ -2,8 +2,8 @@
 
 Files are compared byte-for-byte, except that each diagram is reduced to its structure
 (node ids, anchor stamps, edges, labels), so Graphviz layout and fonts do not matter; see
-tests/golden_digest.py for why. Regenerate after an intentional rendering change, in an
-up-to-date venv (`python -m pip install -U -e ".[dev]"`), with:
+tests/golden_digest.py for why. Regenerate after an intentional rendering change, with CI's
+versions installed (`python -m pip install -e ".[dev]" -c ci-constraints-requirements.txt`), by running:
     RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py
 """
 
