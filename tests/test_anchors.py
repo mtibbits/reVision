@@ -196,7 +196,7 @@ def test_within_different_files_is_error():
     other = SourceFile(path="other.h", text="", lines=("a", "b", "c", "d", "e", "x", "g", "h"))
     specs = {
         "f-a": spec(name="f-a", from_="void f_a(", to=r"^}"),
-        "x": spec(name="x", file="other.h", match="x", within="f-a"),
+        "x": spec(name="x", file="other.h", lines=(6, 6), within="f-a"),
     }
     with pytest.raises(BuildError, match=r"anchor 'x' is within 'f-a' but they name different files"):
         resolve_all(specs, {"k.h": TWIN, "other.h": other})

@@ -81,6 +81,7 @@ def test_fragment_t_seeks_after_load(hello):
     hello.wait_for_function(MEDIA_READY)
     hello.evaluate("location.hash = '#t=5.5'")
     _assert_seeked_to_5_5(hello)
+    assert hello.errors == []
 
 
 def test_fragment_t_seeks_on_load(page, site_url):
@@ -94,6 +95,7 @@ def test_non_finite_t_fragment_keeps_page_working(page, site_url):
     errors = _goto_collecting_errors(page, site_url + "intro/hello/#t=Infinity")
     page.wait_for_function(MEDIA_READY)
     _assert_page_works(page, errors)
+    assert boxed(page) == [5, 6, 7, 8]
     page.evaluate("window.RV.seek(window.RV.data.cues[0].start + 0.05)")
     assert page.evaluate("window.RV.activeSegment()") == 0
 

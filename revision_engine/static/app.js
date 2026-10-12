@@ -218,7 +218,7 @@
     });
   }
 
-  /* initial state: fragment wins, else the lesson's start anchor */
+  /* initial state: fragment wins, else the lesson's start anchor. Stays below the media section: a #t= fragment calls seek(), which reads mediaEl. */
   applyHash();
   if (!pinned && !cueBox && data.start) showAnchor(data.start, { instant: true });
   window.addEventListener("hashchange", applyHash);
