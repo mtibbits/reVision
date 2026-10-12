@@ -134,7 +134,8 @@
   /* URL fragment: #anchor-name pins, #t=12.5 seeks (Task 13 reads pendingSeek) */
   let pendingSeek = null;
   function applyHash() {
-    const h = decodeURIComponent(location.hash.replace(/^#/, ""));
+    let h;
+    try { h = decodeURIComponent(location.hash.replace(/^#/, "")); } catch (e) { return; /* not valid percent-encoding: ignore */ }
     if (!h) return;
     if (/^t=/.test(h)) { pendingSeek = parseFloat(h.slice(2)) || 0; return; }
     if (anchorRange(h)) pin(h);

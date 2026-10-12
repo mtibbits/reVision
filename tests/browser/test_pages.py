@@ -40,6 +40,17 @@ def test_fragment_pins_on_load(page, site_url):
     assert boxed(page) == [10, 11, 12, 13, 14, 15]
 
 
+def test_malformed_fragment_keeps_page_working(page, site_url):
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(site_url + "intro/hello/#%")
+    assert errors == []
+    assert page.evaluate("typeof window.RV") == "object"
+    assert boxed(page) == [5, 6, 7, 8]
+    page.check('input[name="q0"][value="0"]')
+    assert "Correct" in page.locator('.rv-q[data-answer="0"] .rv-q-feedback').inner_text()
+
+
 def test_variants_panel_jumps(hello):
     hello.click('.rv-rail-btn[data-panel="variants"]')
     hello.click('.rv-variant[data-anchor="main-fn"]')
