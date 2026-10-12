@@ -96,8 +96,8 @@ def test_non_finite_t_fragment_keeps_page_working(page, site_url):
     page.wait_for_function(MEDIA_READY)
     _assert_page_works(page, errors)
     assert boxed(page) == [5, 6, 7, 8]
-    page.evaluate("window.RV.seek(window.RV.data.cues[0].start + 0.05)")
-    assert page.evaluate("window.RV.activeSegment()") == 0
+    page.evaluate("document.getElementById('rv-media-el').currentTime = window.RV.data.cues[0].start + 0.05")
+    page.wait_for_function("window.RV.activeSegment() === 0", timeout=3000)
 
 
 def test_variants_panel_jumps(hello):
