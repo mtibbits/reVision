@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +46,7 @@ class BuildResult:
     pages: list[Path]
     report: Report
     commit: str
-    unlinked: list[tuple[str, int, str]]  # (lesson.md path, line, span text)
+    unlinked: list[tuple[str, int, str]] = field(default_factory=list)  # (lesson.md path, line, span text)
 
 
 @dataclass

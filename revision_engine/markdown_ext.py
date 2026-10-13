@@ -154,7 +154,7 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
                     if child.type == "image":
                         child.map = block.map
                     elif child.type == "code_inline" and ctx.lookup(child.content) is None:
-                        out.unlinked_code.append((line + child.meta["rv_line"], child.content))
+                        out.unlinked_code.append((line + child.meta.get("rv_line", 0), child.content))
 
     md.core.ruler.push("rv_links", core_rewrite)
 

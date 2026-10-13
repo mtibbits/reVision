@@ -162,6 +162,18 @@ def test_build_reports_unlinked_code_spans_per_lesson(example_copy):
     assert result.unlinked == [("docs/revision/chapters/01-intro/lessons/01-hello/lesson.md", n, "printf")]
 
 
+def test_build_lists_unlinked_spans_in_curriculum_order(example_copy):
+    lessons = "docs/revision/chapters/01-intro/lessons"
+    for lesson, span in [("02-quiet", "second"), ("01-hello", "first")]:  # written out of curriculum order
+        md = example_copy / lessons / lesson / "lesson.md"
+        md.write_text(md.read_text(encoding="utf-8") + f"\n`{span}`\n", encoding="utf-8", newline="\n")
+    result = build(example_copy, commit=FIXED, check_only=True)
+    assert [(where.split("/")[-2], text) for where, _, text in result.unlinked] == [
+        ("01-hello", "first"),
+        ("02-quiet", "second"),
+    ]
+
+
 def test_build_unlinked_is_empty_for_minimal_example(example_copy):
     result = build(example_copy, commit=FIXED, check_only=True)
     assert result.unlinked == []
