@@ -1,8 +1,10 @@
 import json
+import re
 import wave
 
 import pytest
 
+from revision_engine.config import DEFAULT_VOICE
 from revision_engine.errors import BuildError
 from revision_engine.narration import (
     Narration,
@@ -111,7 +113,7 @@ from revision_engine.narration import resolve_voice_model  # noqa: E402
 NL = chr(10)
 
 
-def _lesson(tmp_path, front_voice=None, project_voice=None):
+def _lesson(tmp_path, front_voice=None, project_voice=None, narration_voice=None):
     root = tmp_path / "repo"
     lesson = root / "docs/revision/chapters/c/lessons/l"
     lesson.mkdir(parents=True)
@@ -124,6 +126,10 @@ def _lesson(tmp_path, front_voice=None, project_voice=None):
     if project_voice:
         cfg += "narration:" + chr(10) + f"  voice: {project_voice}" + chr(10)
     (root / "revision.yaml").write_text(cfg, encoding="utf-8")
+    if narration_voice:
+        (lesson / "narration.yaml").write_text(
+            f"voice: {narration_voice}" + NL + "segments:" + NL + "  - text: hi" + NL, encoding="utf-8"
+        )
     return lesson
 
 
@@ -164,6 +170,106 @@ def test_narration_yaml_voice_wins_over_front_matter(tmp_path, monkeypatch):
     lesson = _lesson(tmp_path, front_voice="front")
     (lesson / "narration.yaml").write_text("voice: nar" + NL + "segments:" + NL + "  - text: hi" + NL, encoding="utf-8")
     assert resolve_voice_model(lesson, None, None) == ("nar", voices / "nar.onnx")
+
+
+BAD_VOICES = [
+    "../x", "../outside/x", "a/b", "a\\b", "..", ".", "/abs/x", "C:x", "C:\\x",
+    "//host.invalid/share/x", "\\\\host.invalid\\share\\x", "x:stream", "en_US-x\n",
+    "a\x00b", "", ".hidden", "-x", "my voice",
+]
+
+
+def _empty_voices(tmp_path, monkeypatch):
+    voices = tmp_path / "voices"
+    voices.mkdir()
+    monkeypatch.setenv("RV2_VOICES", str(voices))
+    return voices
+
+
+@pytest.mark.parametrize("bad", BAD_VOICES, ids=[repr(b) for b in BAD_VOICES])
+def test_voice_name_rejected_from_cli(tmp_path, monkeypatch, bad):
+    _empty_voices(tmp_path, monkeypatch)
+    lesson = _lesson(tmp_path)
+    with pytest.raises(BuildError, match=re.escape(f"--voice: voice {bad!r} is not a voice name")):
+        resolve_voice_model(lesson, bad, None)
+
+
+def test_voice_name_message_states_the_whole_rule(tmp_path, monkeypatch):
+    _empty_voices(tmp_path, monkeypatch)
+    lesson = _lesson(tmp_path)
+    with pytest.raises(BuildError) as e:
+        resolve_voice_model(lesson, ".hidden", None)
+    assert str(e.value) == (
+        "--voice: voice '.hidden' is not a voice name: use only ASCII letters, digits, '_', '-' "
+        "and '.', not starting with '-' or '.'. Put <voice>.onnx directly in $RV2_VOICES (or "
+        "~/piper-voices), or pass --model to use a model file elsewhere"
+    )
+
+
+def _plant_outside(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.onnx").write_bytes(b"x")
+    (outside / "x.onnx.json").write_text('{"audio": {"sample_rate": 22050}}', encoding="utf-8")
+
+
+def test_voice_name_rejected_even_when_traversal_target_exists(tmp_path, monkeypatch):
+    _empty_voices(tmp_path, monkeypatch)
+    _plant_outside(tmp_path)
+    lesson = _lesson(tmp_path)
+    with pytest.raises(BuildError, match=re.escape("--voice: voice '../outside/x' is not a voice name")):
+        resolve_voice_model(lesson, "../outside/x", None)
+
+
+@pytest.mark.parametrize("source", ["narration.yaml", "front matter", "project"])
+def test_voice_name_rejected_names_its_source(tmp_path, monkeypatch, source):
+    _empty_voices(tmp_path, monkeypatch)
+    _plant_outside(tmp_path)
+    if source == "narration.yaml":
+        lesson = _lesson(tmp_path, narration_voice="../outside/x")
+        where = f"{lesson.name}/narration.yaml"
+    elif source == "front matter":
+        lesson = _lesson(tmp_path, front_voice="../outside/x")
+        where = f"{lesson.name}/lesson.md"
+    else:
+        lesson = _lesson(tmp_path, project_voice="../outside/x")
+        where = f"{(tmp_path / 'repo' / 'revision.yaml').resolve()} (narration.voice)"
+    with pytest.raises(BuildError, match=re.escape(f"{where}: voice '../outside/x' is not a voice name")):
+        resolve_voice_model(lesson, None, None)
+
+
+def test_overridden_bad_voice_is_not_checked(tmp_path, monkeypatch):
+    voices = _empty_voices(tmp_path, monkeypatch)
+    (voices / "good.onnx").write_bytes(b"x")
+    lesson = _lesson(tmp_path, narration_voice="../x")
+    assert resolve_voice_model(lesson, "good", None) == ("good", voices / "good.onnx")
+
+
+def test_bad_voice_with_model_is_unaffected(tmp_path, monkeypatch):
+    _empty_voices(tmp_path, monkeypatch)
+    model = tmp_path / "elsewhere.onnx"
+    model.write_bytes(b"x")
+    lesson = _lesson(tmp_path)
+    assert resolve_voice_model(lesson, "../x", model) == ("../x", model)
+
+
+@pytest.mark.parametrize(
+    "name", ["en_US-lessac-medium", "zh_CN-huayan-x_low", "en_US-hfc_female-medium", "my.voice", "_custom"]
+)
+def test_valid_voice_names_accepted(tmp_path, monkeypatch, name):
+    """Born green: real voice names resolve exactly as before the rule existed."""
+    voices = _empty_voices(tmp_path, monkeypatch)
+    (voices / f"{name}.onnx").write_bytes(b"x")
+    lesson = _lesson(tmp_path)
+    assert resolve_voice_model(lesson, name, None) == (name, voices / f"{name}.onnx")
+
+
+def test_default_voice_passes_the_rule(tmp_path, monkeypatch):
+    """Born green: the rule never refuses the default voice."""
+    voices = _empty_voices(tmp_path, monkeypatch)
+    (voices / f"{DEFAULT_VOICE}.onnx").write_bytes(b"x")
+    lesson = _lesson(tmp_path)
+    assert resolve_voice_model(lesson, None, None) == (DEFAULT_VOICE, voices / f"{DEFAULT_VOICE}.onnx")
 
 
 def test_cues_record_the_voice_actually_used(tmp_path):

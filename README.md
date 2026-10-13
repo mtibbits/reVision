@@ -36,16 +36,20 @@ Revision control, revisited.
 
 For `narrate`, `pip install piper-tts` and download a voice (`.onnx` plus its `.onnx.json`) from
 [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices); the example lesson uses
-`en_US-lessac-medium`. Without `--model` the voice comes from the lesson's `voice`, then the project's
-`narration.voice`, and the model is `<voice>.onnx` in `$RV2_VOICES` or `~/piper-voices`. `--silent` writes a
-silent placeholder track with plausible timings when Piper is unavailable.
+`en_US-lessac-medium`. Without `--model` the voice comes from `--voice`, then the lesson's `narration.yaml`
+`voice`, then its front matter `voice`, then the project's `narration.voice`, and the model is `<voice>.onnx`
+directly in `$RV2_VOICES` or `~/piper-voices`. A voice is a name, not a path: it may use only ASCII letters,
+digits, `_`, `-` and `.`, not starting with `-` or `.`, and `rv2 narrate` refuses anything else. To use a model
+file somewhere else, pass `--model`. `--silent` writes a silent placeholder track with plausible timings when
+Piper is unavailable.
 
 `revision` is an alias for `rv2`.
 
 ## Writing a lesson
 
 - `lesson.md` starts with front matter: `title`, `file` (the source file shown), and optionally
-  `summary`, `start` (the anchor boxed on load), `media`, and `voice`.
+  `summary`, `start` (the anchor boxed on load), `media`, and `voice` (a voice name, not a path; see
+  `narrate`).
 - `anchors.yaml` names code regions. Each anchor uses one form: `from`/`to` (a line containing
   `from`, then the first later line matching the `to` regex), `match` (one line), or
   `lines: 88-92`. Add `variant: true` and a `label` to list it in the Variants panel.
