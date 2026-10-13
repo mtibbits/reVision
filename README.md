@@ -30,7 +30,7 @@ Revision control, revisited.
 | Command | What it does |
 |---|---|
 | `rv2 build` | Writes the site into the output folder. No network. Same commit, same bytes. |
-| `rv2 check` | Runs every validation without writing. Use it as a pre-commit hook. |
+| `rv2 check [--strict] [--list-unlinked]` | Runs every validation without writing. Use it as a pre-commit hook or CI gate. `--strict` exits 1 if any warning is reported; `--list-unlinked` lists each inline code span (not fenced blocks) that matches no vendor intrinsic table, per lesson, without changing the exit code. |
 | `rv2 serve` | Builds to a temp folder, serves on localhost, rebuilds on change. |
 | `rv2 narrate LESSON [--model voice.onnx]` | Synthesizes `narration.yaml` with Piper into audio plus `cues.json`. Commit both. |
 

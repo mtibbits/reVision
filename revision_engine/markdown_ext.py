@@ -3,7 +3,8 @@
 Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
   [phrase](@anchor)        anchor phrase -> <span class="rv-anchor" data-anchor=...>
   [name](!intrinsic)       vendor link   -> <a class="rv-intrinsic" href=...>
-  `name` (inline code)     auto-linked when the name is in a vendor table
+  `name` (inline code)     auto-linked when the name is in a vendor table; unlinked ones are
+                           recorded on RenderedLesson.unlinked_code
   ![alt](diagrams/x.dot)   inline pre-rendered SVG in a <figure class="rv-diagram">
   ```quiz ... ```          page-local knowledge check widget
 """
@@ -17,6 +18,7 @@ from typing import Callable
 
 import yaml
 from markdown_it import MarkdownIt
+from markdown_it.rules_inline import backtick
 from markdown_it.token import Token
 
 from revision_engine.errors import BuildError, Report
@@ -39,6 +41,7 @@ class RenderedLesson:
     used_anchors: list[str] = field(default_factory=list)
     used_diagrams: list[str] = field(default_factory=list)
     quiz_count: int = 0
+    unlinked_code: list[tuple[int, str]] = field(default_factory=list)  # (file line, span text)
 
 
 def _line(token: Token, fallback: int, ctx: RenderContext) -> int:
@@ -130,13 +133,28 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
     out = RenderedLesson(html="")
     md = MarkdownIt("commonmark").enable("table")
 
+    # Stamp each code span with its line within the inline block, so the unlinked listing can
+    # report the span's own line (a span can sit several lines into a paragraph, or wrap).
+    def backticks(state, silent) -> bool:
+        pos, count = state.pos, len(state.tokens)
+        ok = backtick(state, silent)
+        if len(state.tokens) > count:  # only a matched span pushes; push flushes pending text first
+            state.tokens[-1].meta["rv_line"] = state.src.count("\n", 0, pos)
+        return ok
+
+    md.inline.ruler.at("backticks", backticks)
+
     def core_rewrite(state) -> None:
         for block in state.tokens:
             if block.type == "inline" and block.children:
-                _rewrite_links(block.children, _line(block, 1, ctx), ctx, out)
+                line = _line(block, 1, ctx)
+                _rewrite_links(block.children, line, ctx, out)
+                # Top level only: alt-text tokens nest in image.children and render as plain text.
                 for child in block.children:
                     if child.type == "image":
                         child.map = block.map
+                    elif child.type == "code_inline" and ctx.lookup(child.content) is None:
+                        out.unlinked_code.append((line + child.meta["rv_line"], child.content))
 
     md.core.ruler.push("rv_links", core_rewrite)
 

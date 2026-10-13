@@ -151,3 +151,17 @@ def test_summary_becomes_meta_description(example_copy, tmp_path):
     assert '<meta name="description" content="One helper function, one call, one print.">' in page
     quiet = (out / "intro" / "quiet" / "index.html").read_text(encoding="utf-8")
     assert 'name="description"' not in quiet
+
+
+def test_build_reports_unlinked_code_spans_per_lesson(example_copy):
+    md = example_copy / "docs/revision/chapters/01-intro/lessons/01-hello/lesson.md"
+    md.write_text(md.read_text(encoding="utf-8") + "\nCall `printf` to show it.\n", encoding="utf-8", newline="\n")
+    lines = md.read_text(encoding="utf-8").splitlines()
+    n = next(i for i, line in enumerate(lines, start=1) if "Call `printf`" in line)
+    result = build(example_copy, commit=FIXED, check_only=True)
+    assert result.unlinked == [("docs/revision/chapters/01-intro/lessons/01-hello/lesson.md", n, "printf")]
+
+
+def test_build_unlinked_is_empty_for_minimal_example(example_copy):
+    result = build(example_copy, commit=FIXED, check_only=True)
+    assert result.unlinked == []
