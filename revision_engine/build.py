@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +46,7 @@ class BuildResult:
     pages: list[Path]
     report: Report
     commit: str
+    unlinked: list[tuple[str, int, str]] = field(default_factory=list)  # (lesson.md path, line, span text)
 
 
 @dataclass
@@ -59,6 +60,7 @@ class _LessonBuild:
     lesson_html: str
     media: str | None
     cues: list[dict[str, Any]] | None
+    unlinked: list[tuple[str, int, str]]
 
 
 def _rel(cfg: ProjectConfig, p: Path) -> str:
@@ -156,6 +158,7 @@ def _build_lesson(cfg: ProjectConfig, chapter: Chapter, ref: LessonRef, report: 
         lesson_html=rendered.html,
         media=media,
         cues=cues,
+        unlinked=[(ctx.where, line, text) for line, text in rendered.unlinked_code],
     )
 
 
@@ -195,9 +198,10 @@ def build(
     report = Report()
     flat = [(ch, le) for ch in curriculum.chapters for le in ch.lessons]
     built = [_build_lesson(cfg, ch, le, report) for ch, le in flat]
+    unlinked = [u for lb in built for u in lb.unlinked]
 
     if check_only:
-        return BuildResult(output=output, pages=[], report=report, commit=commit)
+        return BuildResult(output=output, pages=[], report=report, commit=commit, unlinked=unlinked)
 
     if output.exists():
         if any(output.iterdir()) and not (output / "site.json").is_file():
@@ -258,4 +262,4 @@ def build(
     if flat:
         first = f"{flat[0][0].slug}/{flat[0][1].slug}/"
         (output / "index.html").write_text(render_redirect(first, cfg.site.title), encoding="utf-8", newline="\n")
-    return BuildResult(output=output, pages=pages, report=report, commit=commit)
+    return BuildResult(output=output, pages=pages, report=report, commit=commit, unlinked=unlinked)

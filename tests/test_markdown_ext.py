@@ -113,3 +113,72 @@ def test_ordinary_markdown_still_works():
     out = render_markdown("# H\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```c\nint x;\n```\n", ctx())
     assert "<h1>H</h1>" in out.html and "<table>" in out.html
     assert '<pre><code class="language-c">' in out.html
+
+
+def test_unlinked_code_spans_are_recorded_with_lines():
+    body = "\n".join(
+        [
+            "`vmlaq_f32` and `printf`",  # 1: linked span absent, unlinked present
+            "",
+            "first `a",  # 3: wrapped span opens here
+            "b` mid",  # 4
+            "then `c`",  # 5: the span after a wrapped one
+            "",
+            "hard  ",  # 7: hardbreak
+            "break `d`",  # 8
+            "",
+            "> quote `e`",  # 10: blockquote
+            "",
+            "- item `f`",  # 12: list item
+            "",
+            "# Heading `g`",  # 14: heading
+            "",
+            "[`unknown_x`](!intrinsic) and [`nope`](https://example.com)",  # 16: link text
+            "",
+            "![`alt_only`](x.png)",  # 18: image alt, excluded
+            "",
+            "```c",  # 20-22: fence, excluded
+            "x = `in_fence`;",
+            "```",
+            "",
+            "    `indented`",  # 24: indented code block, excluded
+        ]
+    ) + "\n"
+    c = ctx()
+    out = render_markdown(body, c)
+    assert out.unlinked_code == [
+        (1, "printf"),
+        (3, "a b"),
+        (5, "c"),
+        (8, "d"),
+        (10, "e"),
+        (12, "f"),
+        (14, "g"),
+        (16, "unknown_x"),
+        (16, "nope"),
+    ]
+    assert c.report.warnings == ["L/lesson.md:16: intrinsic 'unknown_x' is not in any vendor table"]
+
+
+def test_unlinked_code_spans_include_table_body_cells():
+    out = render_markdown("| h |\n|---|\n| `cell` |\n", ctx())
+    assert out.unlinked_code == [(3, "cell")]
+
+
+def test_unlinked_code_skips_quiz_fence():
+    quiz = QUIZ.replace("Why eight lanes?", "Why `in_quiz` lanes?")
+    assert "`in_quiz`" in quiz
+    out = render_markdown(quiz, ctx())
+    assert out.quiz_count == 1
+    assert out.unlinked_code == []
+
+
+def test_unlinked_code_lines_shift_by_line_offset():
+    out = render_markdown("`x`\n", ctx(line_offset=5))
+    assert out.unlinked_code == [(6, "x")]
+
+
+def test_unlinked_code_recording_leaves_html_unchanged():
+    out = render_markdown("`vmlaq_f32` and `printf`\n", ctx())
+    assert "<code>printf</code>" in out.html
+    assert out.html.count("rv-intrinsic") == 1

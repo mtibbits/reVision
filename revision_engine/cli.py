@@ -25,6 +25,10 @@ def _parser() -> argparse.ArgumentParser:
 
     c = sub.add_parser("check", help="run every build check without writing output")
     common(c)
+    c.add_argument("--strict", action="store_true", help="exit 1 if the check reports any warning")
+    c.add_argument(
+        "--list-unlinked", action="store_true", help="list inline code spans that match no vendor intrinsic table"
+    )
 
     s = sub.add_parser("serve", help="build, serve on localhost, rebuild on change")
     common(s)
@@ -59,8 +63,18 @@ def _cmd_check(args) -> int:
     from revision_engine.build import build
 
     result = build(args.root, commit=args.commit, check_only=True)
-    print(f"ok: all checks passed at commit {result.commit[:7]}")
+    failed = args.strict and result.report.warnings
+    if not failed:
+        print(f"ok: all checks passed at commit {result.commit[:7]}")
+    if args.list_unlinked:
+        for where, line, text in result.unlinked:
+            print(f"unlinked: {where}:{line}: {text!r}")
+        if result.unlinked:
+            print(f"{len(result.unlinked)} unlinked code span(s)")
     _report(result)
+    if failed:
+        print(f"error: --strict: {len(result.report.warnings)} warning(s)", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -117,6 +131,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command is None:
         parser.print_help(sys.stderr)
         return 2
+    # A lesson's text can hold characters the console codec cannot encode (cp1252 on a
+    # redirected Windows stdout); escape them rather than crash mid-report. Line buffering
+    # keeps stdout ahead of a later stderr line when CI merges the two streams.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace", line_buffering=True)
     try:
         if args.command == "build":
             return _cmd_build(args)
