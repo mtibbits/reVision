@@ -164,6 +164,13 @@ def test_check_without_list_unlinked_prints_no_listing(src, capsys):
     assert err == ""
 
 
+def test_check_list_unlinked_with_no_spans_prints_only_ok(src, capsys):
+    assert _check(src, "--list-unlinked") == 0
+    out, err = capsys.readouterr()
+    assert out == OK
+    assert err == ""
+
+
 def test_check_list_unlinked_does_not_trip_strict(src, capsys):
     u = _with_unlinked_span(src)
     assert _check(src, "--strict", "--list-unlinked") == 0

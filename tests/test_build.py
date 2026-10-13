@@ -163,14 +163,19 @@ def test_build_reports_unlinked_code_spans_per_lesson(example_copy):
 
 
 def test_build_lists_unlinked_spans_in_curriculum_order(example_copy):
+    # Put quiet before hello so curriculum order differs from path order.
+    cur = example_copy / "docs/revision/curriculum.yaml"
+    text = cur.read_text(encoding="utf-8")
+    hello, quiet = text.index("      - slug: hello"), text.index("      - slug: quiet")
+    cur.write_text(text[:hello] + text[quiet:] + text[hello:quiet], encoding="utf-8", newline="\n")
     lessons = "docs/revision/chapters/01-intro/lessons"
-    for lesson, span in [("02-quiet", "second"), ("01-hello", "first")]:  # written out of curriculum order
+    for lesson, span in [("01-hello", "hello_span"), ("02-quiet", "quiet_span")]:
         md = example_copy / lessons / lesson / "lesson.md"
         md.write_text(md.read_text(encoding="utf-8") + f"\n`{span}`\n", encoding="utf-8", newline="\n")
     result = build(example_copy, commit=FIXED, check_only=True)
     assert [(where.split("/")[-2], text) for where, _, text in result.unlinked] == [
-        ("01-hello", "first"),
-        ("02-quiet", "second"),
+        ("02-quiet", "quiet_span"),
+        ("01-hello", "hello_span"),
     ]
 
 
