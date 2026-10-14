@@ -23,7 +23,7 @@ The **release PR** is the pull request that carries the version bump. It can be 
 
 ## Steps
 
-1. **Bump the version** in all three files above, in the release PR. Past bump commits were titled `docs: version X.Y.Z` and `chore: release X.Y.Z`; no title is required.
+1. **Bump the version** in every file listed above, in the release PR. Past bump commits were titled `docs: version X.Y.Z` and `chore: release X.Y.Z`; no title is required.
    <!-- untested: not yet run from this doc; correct it in the next release's PR -->
 
 2. **Golden manifest.** Any PR that changes the built output regenerates `tests/golden/minimal.json` in the same PR, as described in README's [Developing the engine](README.md#developing-the-engine). That includes every change to `revision_engine/static/app.js` or `styles.css`, because they rename the hashed asset files. CI sets `RV_REQUIRE_GOLDEN=1`, so a stale manifest fails the PR. At release time, confirm CI is green on the release PR. If nothing in the built output changed, say so in the PR description.
