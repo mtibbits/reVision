@@ -33,7 +33,6 @@ The **release PR** is the pull request that carries the version bump. It can be 
    <!-- untested: not yet run from this doc; correct it in the next release's PR -->
 
 4. **Tag promptly**, before any other PR merges to `main`. Until the tag exists, README's install line names a tag that is not there. Put the tag on the commit the release PR landed as on `main`, which is its merge commit or its squash commit. Replace `<N>` with the release PR's number:
-   <!-- untested: not yet run from this doc; correct it in the next release's PR -->
 
    ```bash
    git fetch origin
@@ -63,7 +62,6 @@ The **release PR** is the pull request that carries the version bump. It can be 
 ## Checking a release
 
 The tag is on the remote when this exits 0. Exit 2 means it is absent.
-<!-- untested: not yet run from this doc; correct it in the next release's PR -->
 
 ```bash
 git ls-remote --exit-code --tags origin refs/tags/vX.Y.Z
