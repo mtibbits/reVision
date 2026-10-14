@@ -47,7 +47,7 @@ def _carriers(version: str) -> set[str]:
             continue
         try:
             text = (ROOT / path).read_text(encoding="utf-8")
-        except (UnicodeDecodeError, FileNotFoundError):
+        except (UnicodeDecodeError, OSError):
             continue
         if literal.search(text):
             found.add(path)
