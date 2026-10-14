@@ -31,11 +31,17 @@ def _pyproject_version() -> str:
         return tomllib.load(f)["project"]["version"]
 
 
+def _version_literal(version: str) -> re.Pattern[str]:
+    # A dot next to the version is a version-part separator only when a digit is beyond it,
+    # so "X.Y.Z." at the end of a sentence matches and "X.Y.Z.1" does not.
+    return re.compile(r"(?<!\d\.)(?<!\d)" + re.escape(version) + r"(?!\.?\d)")
+
+
 def _carriers(version: str) -> set[str]:
     out = subprocess.run(
         ["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True
     ).stdout.decode("utf-8")
-    literal = re.compile(r"(?<![\d.])" + re.escape(version) + r"(?![\d.])")
+    literal = _version_literal(version)
     found = set()
     for path in filter(None, out.split("\0")):
         if path in NON_CARRIERS or path.startswith(NON_CARRIER_PREFIX):
@@ -60,6 +66,15 @@ def _listed() -> set[str]:
         section.append(line)
     # The first backticked span of each bullet is the path; later spans show the line's form.
     return {m.group(1) for line in section if (m := re.match(r"- `([^`]+)`", line))}
+
+
+def test_version_literal_matches_the_version_not_its_neighbours():
+    # Not the engine's version, or this file would itself be a carrier.
+    literal = _version_literal("9.8.7")
+    for text in ("v9.8.7", "Released 9.8.7.", "ver.9.8.7", "9.8.7,", "9.8.7-rc1", '"9.8.7"'):
+        assert literal.search(text), text
+    for text in ("9.8.70", "19.8.7", "1.9.8.7", "9.8.7.1"):
+        assert not literal.search(text), text
 
 
 def test_version_sites_agree():
