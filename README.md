@@ -86,6 +86,8 @@ CI runs on the pinned `ubuntu-24.04` image, installs its `graphviz` package (2.4
 <!-- tests/test_ci_constraints.py checks that every README line installing .[dev], here and in the fence above, contains INSTALL_CMD from tests/ci_pins.py. -->
 CI installs the runtime dependencies whose output the golden test hashes (Pygments, markdown-it-py, Jinja2, PyYAML and their dependencies) at the versions pinned in `ci-constraints-requirements.txt`; `pyproject.toml` keeps floors only, so `pip install revision-engine` is unaffected. To match CI locally, run `python -m pip install -e ".[dev]" -c ci-constraints-requirements.txt`; after an intentional rendering change, regenerate with `RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py`. `.github/dependabot.yml` asks Dependabot to propose pin bumps; a bump that changes output reddens the golden test on its own PR, where the manifest is regenerated after review.
 
+To cut a release, follow [RELEASING.md](RELEASING.md).
+
 ## License
 
 MIT.
