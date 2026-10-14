@@ -11,6 +11,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import wave
@@ -25,6 +26,8 @@ from revision_engine.errors import BuildError
 from revision_engine.lesson import load_lesson
 
 DEFAULT_PAUSE = 0.4
+# A bare voice name: <voice>.onnx directly in the voices folder. Use only via VOICE_NAME.fullmatch.
+VOICE_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
 
 
 @dataclass(frozen=True)
@@ -216,8 +219,9 @@ def check_cues(n: Narration, cues: dict, where: str) -> None:
     )
 
 
-def _project_voice(lesson_dir: Path) -> str | None:
-    """The ``narration.voice`` of the first revision.yaml found walking up from the lesson."""
+def _project_voice(lesson_dir: Path) -> tuple[str, Path] | None:
+    """The ``narration.voice`` of the first revision.yaml found walking up from the lesson,
+    with the path of that revision.yaml."""
     resolved = lesson_dir.resolve()
     for parent in [resolved, *resolved.parents]:
         cfg = parent / "revision.yaml"
@@ -225,7 +229,7 @@ def _project_voice(lesson_dir: Path) -> str | None:
             data = _load_yaml(cfg)
             narration = data.get("narration") if isinstance(data, dict) else None
             voice = narration.get("voice") if isinstance(narration, dict) else None
-            return voice if isinstance(voice, str) else None
+            return (voice, cfg) if isinstance(voice, str) else None
     return None
 
 
@@ -235,20 +239,33 @@ def resolve_voice_model(lesson_dir: Path, cli_voice: str | None, cli_model: Path
     Name: --voice, then narration.yaml's ``voice``, then the lesson's front matter, then the
     project's narration.voice, then the default. Model: --model if given, else ``<voice>.onnx``
     in $RV2_VOICES or ~/piper-voices. The returned name is what cues.json records.
+
+    The name must be a bare voice name — ASCII letters, digits, ``_``, ``-`` and ``.``, not
+    starting with ``-`` or ``.`` (VOICE_NAME); anything else is refused before it is joined into
+    a path.
     """
     if cli_model is not None:
         if not cli_model.is_file():
             raise BuildError(f"piper voice model not found: {cli_model}")
         return cli_voice or cli_model.name.removesuffix(".onnx"), cli_model
-    voice = cli_voice
+    voice, where = cli_voice, "--voice"
     if voice is None and (lesson_dir / "narration.yaml").is_file():
-        voice = load_narration(lesson_dir / "narration.yaml", f"{lesson_dir.name}/narration.yaml").voice
+        where = f"{lesson_dir.name}/narration.yaml"
+        voice = load_narration(lesson_dir / "narration.yaml", where).voice
     if voice is None and (lesson_dir / "lesson.md").is_file():
-        voice = load_lesson(lesson_dir / "lesson.md", f"{lesson_dir.name}/lesson.md").voice
+        where = f"{lesson_dir.name}/lesson.md"
+        voice = load_lesson(lesson_dir / "lesson.md", where).voice
+    if voice is None and (project := _project_voice(lesson_dir)) is not None:
+        voice, cfg = project
+        where = f"{cfg} (narration.voice)"
     if voice is None:
-        voice = _project_voice(lesson_dir)
-    if voice is None:
-        voice = DEFAULT_VOICE
+        voice, where = DEFAULT_VOICE, "default voice"
+    if not VOICE_NAME.fullmatch(voice):
+        raise BuildError(
+            f"{where}: voice {voice!r} is not a voice name: use only ASCII letters, digits, '_', '-' "
+            "and '.', not starting with '-' or '.'. Put <voice>.onnx directly in $RV2_VOICES (or "
+            "~/piper-voices), or pass --model to use a model file elsewhere"
+        )
     voices_dir = Path(os.environ.get("RV2_VOICES") or Path.home() / "piper-voices")
     model = voices_dir / f"{voice}.onnx"
     if not model.is_file():

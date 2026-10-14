@@ -37,7 +37,11 @@ def _parser() -> argparse.ArgumentParser:
     n = sub.add_parser("narrate", help="synthesize a lesson's narration.yaml into audio + cues.json")
     n.add_argument("lesson_dir", type=Path)
     n.add_argument("--model", type=Path, help="path to a Piper voice model (.onnx); default: <voice>.onnx in $RV2_VOICES or ~/piper-voices")
-    n.add_argument("--voice", help="voice name (default: the lesson's voice, then the project's narration.voice)")
+    n.add_argument(
+        "--voice",
+        help="voice name, not a path (default: narration.yaml's voice, then the lesson's front matter voice, "
+        "then the project's narration.voice)",
+    )
     n.add_argument("--silent", action="store_true", help="use the deterministic silent voice (fixtures and tests)")
     n.add_argument("--mp3", action="store_true", help="also transcode to MP3 with ffmpeg and point cues at it")
     return p

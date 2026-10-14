@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -58,13 +59,26 @@ def test_narrate_silent_regenerates_cues(minimal_example, tmp_path):
     assert (lesson / "cues.json").is_file()
 
 
-def test_narrate_without_model_reports_missing_voice_file(minimal_example, tmp_path, monkeypatch, capsys):
-    src = tmp_path / "m"
-    shutil.copytree(minimal_example, src)
+def _set_project_voice(src: Path, voice: str) -> None:
     cfg = src / "revision.yaml"
     text = cfg.read_text(encoding="utf-8")
     assert text.count("voice: en_US-lessac-medium") == 1
-    cfg.write_text(text.replace("voice: en_US-lessac-medium", f"voice: {PROJECT_VOICE}"), encoding="utf-8", newline="\n")
+    cfg.write_text(text.replace("voice: en_US-lessac-medium", f"voice: {voice}"), encoding="utf-8", newline="\n")
+
+
+def _narrate_cli(lesson: Path, voices: Path, *extra: str) -> subprocess.CompletedProcess:
+    """Run `rv2 narrate` in a subprocess, so a traceback is observed, not assumed."""
+    return subprocess.run(
+        [sys.executable, "-m", "revision_engine.cli", "narrate", str(lesson), *extra],
+        env={**os.environ, "RV2_VOICES": str(voices)},
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+
+def test_narrate_without_model_reports_missing_voice_file(src, tmp_path, monkeypatch, capsys):
+    _set_project_voice(src, PROJECT_VOICE)
     assert PROJECT_VOICE != DEFAULT_VOICE
     monkeypatch.setenv("RV2_VOICES", str(tmp_path / "none"))
     lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
@@ -72,22 +86,50 @@ def test_narrate_without_model_reports_missing_voice_file(minimal_example, tmp_p
     assert f"voice '{PROJECT_VOICE}': no model at" in capsys.readouterr().err
 
 
-def test_narrate_reports_malformed_project_yaml_without_traceback(minimal_example, tmp_path):
-    src = tmp_path / "m"
-    shutil.copytree(minimal_example, src)
+def test_narrate_reports_malformed_project_yaml_without_traceback(src, tmp_path):
     (src / "revision.yaml").write_text("narration: [unclosed" + chr(10), encoding="utf-8")
-    lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
-    r = subprocess.run(
-        [sys.executable, "-m", "revision_engine.cli", "narrate", str(lesson)],
-        env={**os.environ, "RV2_VOICES": str(tmp_path / "none")},
-        capture_output=True,
-        text=True,
-        cwd=REPO,
-    )
+    r = _narrate_cli(src / "docs/revision/chapters/01-intro/lessons/01-hello", tmp_path / "none")
     assert r.returncode == 1
     assert r.stderr.startswith("error: ")
     assert "revision.yaml: invalid YAML:" in r.stderr
     assert "Traceback" not in r.stderr
+
+
+def _voices_beside_outside_model(tmp_path: Path) -> Path:
+    """An empty voices dir, with a model planted at <voices>/../outside/x.onnx."""
+    voices = tmp_path / "voices"
+    voices.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.onnx").write_bytes(b"x")
+    (outside / "x.onnx.json").write_text('{"audio": {"sample_rate": 22050}}', encoding="utf-8")
+    return voices
+
+
+def test_narrate_rejects_path_voice_from_cli(src, tmp_path):
+    lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
+    r = _narrate_cli(lesson, _voices_beside_outside_model(tmp_path), "--voice", "../outside/x")
+    assert r.returncode == 1
+    assert r.stderr.startswith("error: --voice: voice '../outside/x' is not a voice name")
+    assert "Traceback" not in r.stderr
+    assert r.stderr.count("\n") == 1
+
+
+def test_narrate_rejects_path_voice_from_project(src, tmp_path):
+    _set_project_voice(src, "../outside/x")
+    r = _narrate_cli(src / "docs/revision/chapters/01-intro/lessons/01-hello", _voices_beside_outside_model(tmp_path))
+    assert r.returncode == 1
+    assert r.stderr.startswith("error: ")
+    assert "revision.yaml (narration.voice): voice '../outside/x' is not a voice name" in r.stderr
+    assert "Traceback" not in r.stderr
+    assert r.stderr.count("\n") == 1
+
+
+def test_narrate_silent_ignores_voice_rule(src):
+    """Born green: --silent never locates a model, so the voice rule does not apply."""
+    lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
+    assert main(["narrate", str(lesson), "--silent", "--voice", "../x"]) == 0
+    assert json.loads((lesson / "cues.json").read_text(encoding="utf-8"))["voice"] == "../x"
 
 
 LESSONS = "docs/revision/chapters/01-intro/lessons"
