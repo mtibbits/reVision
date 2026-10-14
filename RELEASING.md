@@ -50,14 +50,14 @@ The **release PR** is the pull request that carries the version bump. It can be 
    gh release create vX.Y.Z -R mtibbits/reVision --verify-tag --title "reVision engine vX.Y.Z" --notes-file notes.md
    ```
 
-6. **Re-pin the consumer.** `mtibbits/volk` installs the engine in `.github/workflows/publish_docs.yml` on its `dev/all-prs` branch, in the step "Install reVision engine". In a volk clone, on a branch off `dev/all-prs`, change that step's tag to `vX.Y.Z`, push, and open the PR. volk is a fork, so name the repository and base explicitly:
+6. **Re-pin the consumer.** `mtibbits/volk` installs the engine in `.github/workflows/publish_docs.yml` on its `dev/all-prs` branch, in the step "Install reVision engine". In a volk clone, on a branch off `dev/all-prs`, change that step's tag to `vX.Y.Z`, push, and open the PR. volk is a fork, so name the repository and base explicitly. The PR description, saved in `pr.md`, says what the release changes in the lessons and links the release:
    <!-- untested: not yet run from this doc; correct it in the next release's PR -->
 
    ```bash
-   gh pr create -R mtibbits/volk --base dev/all-prs --title "ci: build reVision lessons with engine vX.Y.Z"
+   gh pr create -R mtibbits/volk --base dev/all-prs --title "ci: build reVision lessons with engine vX.Y.Z" --body-file pr.md
    ```
 
-   The published lessons use the new engine only once this PR merges, so follow it until it does.
+   On that PR, volk's "Check reVision lessons" step installs the engine from the new tag and runs `rv2 check`, so a green check shows the tag installs. The published lessons use the new engine only once this PR merges, so follow it until it does.
 
 ## Checking a release
 
