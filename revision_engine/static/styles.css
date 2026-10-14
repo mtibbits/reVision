@@ -114,6 +114,10 @@ body.rv-pinned .rv-line.rv-boxed { border-left-color: var(--rv-pin); }
 .rv-seg:hover, .rv-seg:focus { background: var(--rv-bg); outline: none; }
 .rv-seg.rv-active { color: var(--rv-fg); background: var(--rv-box); }
 .rv-media-error { color: var(--rv-muted); }
+/* Media failed to load: message first, transcript scrolls below it, pane shrinks to content up to --rv-media-h. */
+.rv-media.rv-media-failed { height: auto; max-height: var(--rv-media-h); }
+.rv-media-failed .rv-media-error { grid-row: 1; margin: 0; }
+.rv-media-failed .rv-transcript { grid-row: 2; }
 
 /* Quiz */
 .rv-quiz { margin-top: 28px; padding: 14px 16px; border: 1px solid var(--rv-line); border-radius: 8px; }

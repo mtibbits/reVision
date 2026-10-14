@@ -194,6 +194,7 @@
     else pendingSeekTo = seconds;
   }
   if (mediaEl) {
+    const mediaPane = $("rv-media");
     mediaEl.addEventListener("loadedmetadata", () => {
       if (pendingSeekTo !== null) { mediaEl.currentTime = pendingSeekTo; pendingSeekTo = null; }
     });
@@ -202,20 +203,23 @@
       const i = segmentAt(mediaEl.currentTime);
       if (i !== activeIndex) applyCue(i);
     });
-    mediaEl.addEventListener("error", () => {
+    function onMediaError() {
       const err = document.querySelector(".rv-media-error");
       if (err) err.hidden = false;
       mediaEl.hidden = true;
-    });
+      if (mediaPane) mediaPane.classList.add("rv-media-failed");
+    }
+    mediaEl.addEventListener("error", onMediaError);
     segEls.forEach((el) => {
       const go = () => seek(parseFloat(el.dataset.start));
       el.addEventListener("click", go);
       el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
     });
-    const mediaPane = $("rv-media");
     if (mediaPane) mediaPane.addEventListener("keydown", (e) => {
       if (e.key === " " && e.target === mediaPane) { e.preventDefault(); if (mediaEl.paused) mediaEl.play(); else mediaEl.pause(); }
     });
+    /* A load failure before this deferred script ran has already fired "error"; catch it up. */
+    if (mediaEl.error) onMediaError();
   }
 
   /* initial state: fragment wins, else the lesson's start anchor. Stays below the media section: a #t= fragment calls seek(), which reads mediaEl. */
