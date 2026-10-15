@@ -51,7 +51,6 @@ def fail_media(page, url: str, order: str) -> list[str]:
         page.goto(url, wait_until="domcontentloaded")  # a held media request delays "load"
         page.wait_for_function("window.RV !== undefined")
         held[0].abort()
-        page.wait_for_function("document.getElementById('rv-media-el').error !== null")
     else:
         page.route(WAV, lambda r: r.abort())
         page.route(APP, lambda r: held.append(r))
@@ -59,7 +58,7 @@ def fail_media(page, url: str, order: str) -> list[str]:
         page.wait_for_function(
             "(() => { const m = document.getElementById('rv-media-el'); return !!m && m.error !== null; })()"
         )
-        held[0].fulfill(response=held[0].fetch())
+        held[0].continue_()
         page.wait_for_function("window.RV !== undefined")
     page.wait_for_function("!document.querySelector('.rv-media-error').hidden", timeout=5000)
     return errors
@@ -140,15 +139,11 @@ def test_failed_pane_fits_content_and_caps(page, long_media_url, site_url, order
     assert errors == []
 
 
-def test_working_media_pane_unchanged(page, site_url):
-    page.set_viewport_size({"width": 1400, "height": 800})
-    errors: list[str] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(site_url + "intro/hello/")
-    page.wait_for_function("window.RV !== undefined")
-    page.wait_for_function("document.getElementById('rv-media-el').readyState >= 1")
-    m = measure(page)
+def test_working_media_pane_unchanged(hello):
+    hello.set_viewport_size({"width": 1400, "height": 800})
+    hello.wait_for_function("document.getElementById('rv-media-el').readyState >= 1")
+    m = measure(hello)
     assert not m["failedClass"], m
-    assert page.evaluate("document.querySelector('.rv-media-error').hidden")
+    assert hello.evaluate("document.querySelector('.rv-media-error').hidden")
     assert abs(m["paneH"] - m["cap"]) <= 0.5, m
-    assert errors == []
+    assert hello.errors == []
