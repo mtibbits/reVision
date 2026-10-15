@@ -29,7 +29,7 @@ The **release PR** is the pull request that carries the version bump. It can be 
 2. **Golden manifest.** Any PR that changes the built output regenerates `tests/golden/minimal.json` in the same PR, as described in README's [Developing the engine](README.md#developing-the-engine). That includes every change to `revision_engine/static/app.js` or `styles.css`, because they rename the hashed asset files. CI sets `RV_REQUIRE_GOLDEN=1`, so a stale manifest fails the PR. At release time, confirm CI is green on the release PR. If nothing in the built output changed, say so in the PR description.
    *Untested: not yet run from this doc.*
 
-3. **Open the release PR** with a line saying "After merge: tag, release, re-pin volk". When the change affects rendering, build the volk lessons against the branch before merging. Merge once CI is green.
+3. **Open the release PR** with a line saying "After merge: tag, release, re-pin volk". When the change affects rendering, build the volk lessons against the branch before merging. With the branch's engine installed (for example the checkout's own `.venv`), run `rv2 check --root .` and then `rv2 build --root . --output <dir>` in a volk checkout of `dev/all-prs`. Outside a git checkout, such as a `git archive` export, both commands also need `--commit <sha>`. Merge once CI is green.
    *Untested: not yet run from this doc.*
 
 4. **Tag promptly**, before any other PR merges to `main`. Until the tag exists, README's install line names a tag that is not there. Put the tag on the commit the release PR landed as on `main`, which is its merge commit or its squash commit. Replace `<N>` with the release PR's number:
@@ -43,8 +43,9 @@ The **release PR** is the pull request that carries the version bump. It can be 
 
    If other PRs have merged first, still tag the release PR's commit. Their changes ship in the next version.
 
+   If `main` already carries a version that was never tagged, because its bump merged and step 4 was skipped, tag `main` itself rather than the old bump commit. Do this only when CI is green on `main` and the version files there still name that version. Everything merged since the last tag then ships in this version, so the step 5 notes cover all of it.
+
 5. **Create the GitHub release** with a short, user-facing description of what changed, saved in a notes file:
-   *Untested: not yet run from this doc.*
 
    ```bash
    gh release create vX.Y.Z -R mtibbits/reVision --verify-tag --title "reVision engine vX.Y.Z" --notes-file notes.md
@@ -53,11 +54,12 @@ The **release PR** is the pull request that carries the version bump. It can be 
    Keep `notes.md`, and step 6's `pr.md`, outside both checkouts so they are never committed; give their path if you run the command elsewhere.
 
 6. **Re-pin the consumer.** `mtibbits/volk` installs the engine in `.github/workflows/publish_docs.yml` on its `dev/all-prs` branch, in the step "Install reVision engine". In a volk clone, on a branch off `dev/all-prs` named `chore/revision-engine-vX.Y.Z` (the name past re-pins used), change that step's tag to `vX.Y.Z`, commit, push with `git push -u origin chore/revision-engine-vX.Y.Z`, and open the PR. volk is a fork, so name the repository, base and head explicitly. The PR description, saved in `pr.md`, says what the release changes in the lessons and links the release:
-   *Untested: not yet run from this doc.*
 
    ```bash
    gh pr create -R mtibbits/volk --base dev/all-prs --head chore/revision-engine-vX.Y.Z --title "ci: build reVision lessons with engine vX.Y.Z" --body-file pr.md
    ```
+
+   A worktree keeps an existing clone's branch and changes out of the way: `git worktree add -b chore/revision-engine-vX.Y.Z <dir> origin/dev/all-prs`. On Windows, volk tracks both `cmake/toolchains/` and `cmake/Toolchains/`, which collide on a case-insensitive filesystem, so a fresh checkout shows some toolchain files as modified. Stage only the workflow file.
 
    On that PR, volk's "Check reVision lessons" step installs the engine from the new tag and runs `rv2 check`, so a green check shows the tag installs. The published lessons use the new engine only once this PR merges, so follow it until it does.
 
