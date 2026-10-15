@@ -119,19 +119,20 @@
 
   /* A link inside an anchor phrase (a backticked intrinsic) keeps its own click and Enter. */
   function fromNestedLink(el, e) {
-    const a = e.target.closest ? e.target.closest("a[href]") : null;
-    return !!a && a !== el && el.contains(a);
+    const a = e.target.closest("a[href]");
+    return a !== el && el.contains(a);
   }
 
   /* anchor phrases in the lesson and anchor nodes in diagrams */
   document.querySelectorAll("[data-anchor]").forEach((el) => {
     const name = el.dataset.anchor;
+    const toggle = (e) => { if (fromNestedLink(el, e)) return; e.preventDefault(); pin(pinned === name ? null : name); };
     el.addEventListener("mouseenter", () => showAnchor(name));
-    el.addEventListener("focusin", () => showAnchor(name));
+    el.addEventListener("focusin", (e) => { if (!el.contains(e.relatedTarget)) showAnchor(name); });
     el.addEventListener("mouseleave", restore);
-    el.addEventListener("focusout", restore);
-    el.addEventListener("click", (e) => { if (fromNestedLink(el, e)) return; e.preventDefault(); pin(pinned === name ? null : name); });
-    el.addEventListener("keydown", (e) => { if (fromNestedLink(el, e)) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pin(pinned === name ? null : name); } });
+    el.addEventListener("focusout", (e) => { if (!el.contains(e.relatedTarget)) restore(); });
+    el.addEventListener("click", toggle);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") toggle(e); });
   });
 
   /* variants jump list */

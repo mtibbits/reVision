@@ -1,12 +1,12 @@
 {
   "files": {
-    "assets/app.2fa06ec1.js": "2fa06ec1929b837c1150e1dd02962bfcec688809a1f9fb513eac374ffab6a4db",
+    "assets/app.842cc19f.js": "842cc19f7b2067314ada39a33c53350f54e09f36bed7ec47168c071754530e54",
     "assets/styles.c15bb447.css": "c15bb447590fcc7b991e73204d2e569f06d41fa8c0e4d0e8136660891d5ff2fd",
     "assets/tokens.39cfa450.css": "39cfa4501b6ba71bc235bd6c2d25a32ab2bffee8ba3a6068d8abf01f6007d66c",
     "index.html": "c748b555cc4ef9f6abcd492a1662b32f4892444a70d130ccfed2edbb693d03b2",
-    "intro/hello/index.html": "a53ae69d0ccf54f9ffc379effbfb67dac91b51bccc55144d16de8be488f63653",
+    "intro/hello/index.html": "291c745d7d1c892314c9a713b08aa3a1504308bd36aa5ee11c1e7f37a35fece3",
     "intro/hello/media/narration.wav": "2eca95028d915ae895ff7f316ca60a0682f5fca1ee73af621235f94ff033afe7",
-    "intro/quiet/index.html": "bd3eba39a47b6aad20c6335f3fc25fb7fddd184e4e6479ffe18941752dfd277b",
+    "intro/quiet/index.html": "98cf6d44e56f899c26357cd0ade3eaa1460ef755322a5ab99abc27c1822a7eca",
     "site.json": "cd2be74eb4d86f09240ac469d184111c5154a0437ca031be5f553776c7cdf590"
   }
 }

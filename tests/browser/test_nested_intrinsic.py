@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.server
+import re
 import shutil
 import threading
 from functools import partial
@@ -56,7 +57,7 @@ def stub_vendor(page) -> str:
     href = page.locator(LINK).get_attribute("href")
     assert href.startswith("https://")
     page.context.route(
-        lambda url: url.startswith(href.split("#")[0]),
+        re.compile("^" + re.escape(href.split("#")[0])),
         lambda r: r.fulfill(status=200, content_type="text/html", body="<p>vendor</p>"),
     )
     return href
