@@ -130,7 +130,7 @@
     el.addEventListener("mouseenter", () => showAnchor(name));
     el.addEventListener("focusin", () => showAnchor(name));
     el.addEventListener("mouseleave", restore);
-    el.addEventListener("focusout", (e) => { if (!el.contains(e.relatedTarget)) restore(); });
+    el.addEventListener("focusout", restore);
     el.addEventListener("click", toggle);
     el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") toggle(e); });
   });
