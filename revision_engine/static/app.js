@@ -128,7 +128,7 @@
     const name = el.dataset.anchor;
     const toggle = (e) => { if (fromNestedLink(el, e)) return; e.preventDefault(); pin(pinned === name ? null : name); };
     el.addEventListener("mouseenter", () => showAnchor(name));
-    el.addEventListener("focusin", (e) => { if (!el.contains(e.relatedTarget)) showAnchor(name); });
+    el.addEventListener("focusin", () => showAnchor(name));
     el.addEventListener("mouseleave", restore);
     el.addEventListener("focusout", (e) => { if (!el.contains(e.relatedTarget)) restore(); });
     el.addEventListener("click", toggle);

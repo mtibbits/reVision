@@ -133,3 +133,14 @@ def test_focus_and_blur_on_plain_anchor(nested):
     assert boxed(nested) == [12]
     nested.evaluate("document.activeElement.blur()")
     assert boxed(nested) == []
+
+
+def test_tab_from_phrase_into_its_link_reboxes_the_anchor(nested):
+    nested.locator(PHRASE).focus()
+    assert boxed(nested) == [7]
+    nested.hover('.rv-anchor[data-anchor="call-site"]')
+    nested.mouse.move(0, 0)
+    assert boxed(nested) == []
+    nested.keyboard.press("Tab")
+    assert nested.evaluate("document.activeElement.matches('a.rv-intrinsic')")
+    assert boxed(nested) == [7]
