@@ -117,15 +117,21 @@
     }
   }
 
+  /* A link inside an anchor phrase (a backticked intrinsic) keeps its own click and Enter. */
+  function fromNestedLink(el, e) {
+    const a = e.target.closest ? e.target.closest("a[href]") : null;
+    return !!a && a !== el && el.contains(a);
+  }
+
   /* anchor phrases in the lesson and anchor nodes in diagrams */
   document.querySelectorAll("[data-anchor]").forEach((el) => {
     const name = el.dataset.anchor;
     el.addEventListener("mouseenter", () => showAnchor(name));
-    el.addEventListener("focus", () => showAnchor(name));
+    el.addEventListener("focusin", () => showAnchor(name));
     el.addEventListener("mouseleave", restore);
-    el.addEventListener("blur", restore);
-    el.addEventListener("click", (e) => { e.preventDefault(); pin(pinned === name ? null : name); });
-    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pin(pinned === name ? null : name); } });
+    el.addEventListener("focusout", restore);
+    el.addEventListener("click", (e) => { if (fromNestedLink(el, e)) return; e.preventDefault(); pin(pinned === name ? null : name); });
+    el.addEventListener("keydown", (e) => { if (fromNestedLink(el, e)) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pin(pinned === name ? null : name); } });
   });
 
   /* variants jump list */
