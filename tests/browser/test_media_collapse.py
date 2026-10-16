@@ -25,6 +25,7 @@ def measure(page) -> dict:
             expanded: toggle.getAttribute('aria-expanded'),
             docH: document.documentElement.scrollHeight,
             cap: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rv-media-h')),
+            rightH: document.querySelector('.rv-right').getBoundingClientRect().height,
           };
         })()"""
     )
@@ -82,7 +83,7 @@ def test_collapse_gives_lesson_the_freed_height(hello, width):
     hello.click("#rv-media-toggle")
     r = measure(hello)
 
-    assert abs(e["paneH"] - e["cap"]) <= 0.5, e  # expanded pane is unchanged
+    assert abs(e["paneH"] - min(e["cap"], e["rightH"] / 2)) <= 0.5, e  # expanded pane: the cap, or half the shared region when narrow (#13)
     assert abs(e["gapX"] - 6) <= 0.5, e  # the toggle's own margin spaces it from the player
     assert e["paneH"] - c["paneH"] > 100, (e, c)  # the subject: collapsing frees real height
     assert abs((c["lessonH"] - e["lessonH"]) - (e["paneH"] - c["paneH"])) <= 1, (e, c)
