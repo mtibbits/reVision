@@ -113,6 +113,33 @@ def test_quiz_validation():
         render_markdown(bad, ctx())
 
 
+def _quiz_with_shuffle(line: str) -> str:
+    return "```quiz\nquestions:\n  - q: Which?\n    choices: [a, b, c]\n    answer: 0\n" + line + "```\n"
+
+
+def test_quiz_shuffle_false_marks_fieldset():
+    out = render_markdown(_quiz_with_shuffle("    shuffle: false\n"), ctx())
+    assert '<fieldset class="rv-q" data-answer="0" data-fixed-order>' in out.html
+
+
+def test_quiz_default_emits_no_order_marker():
+    out = render_markdown(QUIZ, ctx())
+    assert "data-fixed-order" not in out.html
+    # The static page, as a reader without JavaScript sees it, lists choices in the authored order.
+    fieldsets = out.html.split("<fieldset")[1:]
+    assert [re.findall(r'value="(\d+)"', fs) for fs in fieldsets] == [["0", "1", "2"], ["0", "1"]]
+
+
+def test_quiz_shuffle_true_is_the_default():
+    explicit = render_markdown(_quiz_with_shuffle("    shuffle: true\n"), ctx())
+    assert explicit.html == render_markdown(_quiz_with_shuffle(""), ctx()).html
+
+
+def test_quiz_shuffle_must_be_boolean():
+    with pytest.raises(BuildError, match=r"L/lesson\.md:1: quiz question 1 shuffle must be true or false"):
+        render_markdown(_quiz_with_shuffle("    shuffle: 'false'\n"), ctx())
+
+
 QUIZ_YAML_ERROR = "quiz block is not valid YAML"
 
 

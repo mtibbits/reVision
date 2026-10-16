@@ -7,7 +7,8 @@ Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
                            recorded on RenderedLesson.unlinked_code
   ![alt](diagrams/x.dot)   inline pre-rendered SVG in a <figure class="rv-diagram">
   ```quiz ... ```          page-local knowledge check widget; code spans in its text render as
-                           plain <code>, never vendor-linked
+                           plain <code>, never vendor-linked; choices are shuffled in the browser
+                           unless a question sets `shuffle: false` (data-fixed-order)
 """
 
 from __future__ import annotations
@@ -123,7 +124,11 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
         answer = q.get("answer")
         if not isinstance(answer, int) or isinstance(answer, bool) or not 0 <= answer < len(choices):
             raise BuildError(f"{ctx.where}:{line}: quiz question {n} answer must be an index into choices")
-        parts.append(f'<fieldset class="rv-q" data-answer="{answer}"><legend>{n}. {_quiz_text(q["q"])}</legend>')
+        shuffle = q.get("shuffle", True)
+        if not isinstance(shuffle, bool):
+            raise BuildError(f"{ctx.where}:{line}: quiz question {n} shuffle must be true or false")
+        fixed = " data-fixed-order" if shuffle is False else ""
+        parts.append(f'<fieldset class="rv-q" data-answer="{answer}"{fixed}><legend>{n}. {_quiz_text(q["q"])}</legend>')
         for ci, choice in enumerate(choices):
             parts.append(f'<label><input type="radio" name="q{qi}" value="{ci}"> {_quiz_text(str(choice))}</label>')
         parts.append('<p class="rv-q-feedback" hidden></p></fieldset>')
