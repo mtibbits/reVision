@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import http.server
-import re
 import shutil
 import threading
 from functools import partial
@@ -23,7 +22,7 @@ NEW_END = "    shuffle: false\n  - q: Is 5 odd?\n    choices: ['odd', 'even']\n 
 
 AUTHORED = [["5", "6", "23"], ["add", "main", "printf"]]
 # Fisher-Yates with Math.random() == 0 turns [a, b, c] into [b, c, a].
-ROTATED = [["6", "23", "5"], ["main", "printf", "add"]]
+ROTATED = [c[1:] + c[:1] for c in AUTHORED]
 
 
 @pytest.fixture(scope="module")
@@ -60,10 +59,7 @@ def open_quiz(page):
 
 
 def labels(page):
-    return page.evaluate(
-        "Array.from(document.querySelectorAll('.rv-q'))"
-        ".map(q => Array.from(q.querySelectorAll('label')).map(l => l.textContent.trim()))"
-    )
+    return [[t.strip() for t in fs.locator("label").all_inner_texts()] for fs in page.locator(".rv-q").all()]
 
 
 def test_quiz_choices_reorder_when_random_says_so(open_quiz, site_url):
@@ -87,9 +83,9 @@ def test_quiz_grades_the_choice_not_its_position(open_quiz, site_url):
         for text in AUTHORED[i]:
             if text == answer:
                 continue
-            fs.locator("label").filter(has_text=re.compile(rf"^\s*{re.escape(text)}\s*$")).click()
+            fs.get_by_label(text, exact=True).click()
             assert feedback.inner_text() == "Not quite. Try another answer."
-        fs.locator("label").filter(has_text=re.compile(rf"^\s*{re.escape(answer)}\s*$")).click()
+        fs.get_by_label(answer, exact=True).click()
         assert feedback.inner_text() == "Correct."
     page.locator(".rv-quiz button").click()
     assert page.locator(".rv-quiz-score").inner_text() == "2 of 2 correct."
@@ -99,7 +95,7 @@ def test_quiz_grades_the_choice_not_its_position(open_quiz, site_url):
 def test_quiz_marked_and_two_choice_questions_keep_authored_order(open_quiz, fixed_url):
     page = open_quiz(fixed_url, 0)
     # Question 1 shuffling on the same page shows the stubbed randomness was live.
-    assert labels(page) == [["6", "23", "5"], ["add", "main", "printf"], ["odd", "even"]]
+    assert labels(page) == [ROTATED[0], AUTHORED[1], ["odd", "even"]]
     assert page.errors == []
 
 
@@ -108,7 +104,6 @@ def test_quiz_without_javascript_lists_authored_order(browser, site_url):
     try:
         page = ctx.new_page()
         page.goto(site_url + "intro/hello/")
-        got = [[t.strip() for t in fs.locator("label").all_inner_texts()] for fs in page.locator(".rv-q").all()]
-        assert got == AUTHORED
+        assert labels(page) == AUTHORED
     finally:
         ctx.close()

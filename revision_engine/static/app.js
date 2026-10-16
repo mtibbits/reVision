@@ -237,7 +237,7 @@
   /* ---- quiz: page-local, nothing stored ---- */
   document.querySelectorAll(".rv-quiz form").forEach((form) => {
     const questions = Array.from(form.querySelectorAll(".rv-q"));
-    /* Choices show in a fresh random order on each load, unless the author fixed it; a two-choice question keeps its order. Grading compares authored indexes, so order does not matter to it. */
+    /* Shuffle unless the author fixed the order; two choices (True/False) keep theirs. Grading uses authored indexes. */
     questions.forEach((q) => {
       const labels = Array.from(q.querySelectorAll(":scope > label"));
       if (q.hasAttribute("data-fixed-order") || labels.length < 3) return;

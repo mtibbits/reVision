@@ -127,7 +127,7 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
         shuffle = q.get("shuffle", True)
         if not isinstance(shuffle, bool):
             raise BuildError(f"{ctx.where}:{line}: quiz question {n} shuffle must be true or false")
-        fixed = " data-fixed-order" if shuffle is False else ""
+        fixed = "" if shuffle else " data-fixed-order"
         parts.append(f'<fieldset class="rv-q" data-answer="{answer}"{fixed}><legend>{n}. {_quiz_text(q["q"])}</legend>')
         for ci, choice in enumerate(choices):
             parts.append(f'<label><input type="radio" name="q{qi}" value="{ci}"> {_quiz_text(str(choice))}</label>')
