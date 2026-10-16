@@ -67,7 +67,8 @@ Piper is unavailable.
   code span. YAML does not allow an unquoted value to begin with a backtick, so single-quote a `q`
   or choice that starts with one (`` q: '`vaddq_f32` adds how many lanes?' ``); unquoted, the
   build fails with "quiz block is not valid YAML". Use single quotes, not double: inside double
-  quotes YAML reads a backslash as an escape, so `` `\n` `` would lose its backslash.
+  quotes YAML reads a backslash as an escape, so `` `\n` `` would lose its backslash. Inside single
+  quotes, write an apostrophe twice (`''`).
 - `narration.yaml` is a list of segments: `text` plus what to `show`, and optionally a `diagram`
   and `node` to bring into view. Timings are derived by `rv2 narrate`, never typed. If the words
   change and `narrate` is not rerun, `build` fails with the diff.

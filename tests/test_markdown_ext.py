@@ -201,6 +201,12 @@ def test_readme_quiz_quoting_example_keeps_backslashes():
     assert r"<code>\n</code>" in out.html
 
 
+def test_quiz_single_quoted_doubled_apostrophe():
+    body = "```quiz\nquestions:\n  - q: '`main` is the program''s entry?'\n    choices: [yes, no]\n    answer: 0\n```\n"
+    out = render_markdown(body, ctx())
+    assert "<legend>1. <code>main</code> is the program's entry?</legend>" in out.html
+
+
 def test_ordinary_markdown_still_works():
     out = render_markdown("# H\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```c\nint x;\n```\n", ctx())
     assert "<h1>H</h1>" in out.html and "<table>" in out.html
