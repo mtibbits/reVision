@@ -228,6 +228,14 @@ def test_readme_quiz_quoting_example_keeps_backslashes():
     assert r"<code>\n</code>" in out.html
 
 
+def test_readme_documents_quiz_shuffle():
+    # The README's opt-out, used as written, must keep a question's authored order.
+    m = re.search(r"`(shuffle: false)`", _readme_lesson_section())
+    assert m
+    out = render_markdown(_quiz_with_shuffle("    " + m.group(1) + "\n"), ctx())
+    assert "data-fixed-order" in out.html
+
+
 def test_quiz_single_quoted_doubled_apostrophe():
     body = "```quiz\nquestions:\n  - q: '`main` is the program''s entry?'\n    choices: [yes, no]\n    answer: 0\n```\n"
     out = render_markdown(body, ctx())
