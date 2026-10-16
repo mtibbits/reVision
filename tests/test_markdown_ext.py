@@ -1,8 +1,12 @@
+import re
+
 import pytest
+import yaml
 
 from revision_engine.errors import BuildError, Report
 from revision_engine.intrinsics import lookup
 from revision_engine.markdown_ext import RenderContext, render_markdown
+from tests.ci_pins import ROOT
 
 
 def ctx(**kw) -> RenderContext:
@@ -107,6 +111,94 @@ def test_quiz_validation():
     bad = "```quiz\nquestions:\n  - q: x\n    choices: [only]\n    answer: 3\n```\n"
     with pytest.raises(BuildError, match=r"L/lesson\.md:1: quiz question 1 needs at least two choices"):
         render_markdown(bad, ctx())
+
+
+QUIZ_YAML_ERROR = "quiz block is not valid YAML"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "questions:\n  - q: `x` first?\n    choices: [a, b]\n    answer: 0\n",
+        "questions:\n  - q: Which?\n    choices: [`a`, b]\n    answer: 0\n",
+        "questions:\n  - q: Which?\n    choices:\n      - `a`\n      - b\n    answer: 0\n",
+    ],
+    ids=["q", "flow-choice", "block-choice"],
+)
+def test_quiz_unquoted_leading_backtick_is_yaml_error(body):
+    with pytest.raises(BuildError, match=r"L/lesson\.md:1: " + re.escape(QUIZ_YAML_ERROR)):
+        render_markdown("```quiz\n" + body + "```\n", ctx())
+
+
+def test_quiz_code_span_in_question_renders_code():
+    body = "```quiz\nquestions:\n  - q: 'How many floats does `_mm256_fmadd_ps` multiply?'\n    choices: [four, eight]\n    answer: 1\n```\n"
+    out = render_markdown(body, ctx())
+    assert "<legend>1. How many floats does <code>_mm256_fmadd_ps</code> multiply?</legend>" in out.html
+    assert "rv-intrinsic" not in out.html
+    assert out.unlinked_code == []
+
+
+def test_quiz_code_span_in_choice_renders_code():
+    body = "```quiz\nquestions:\n  - q: Which adds?\n    choices: ['`vaddq_f32`', plain]\n    answer: 0\n```\n"
+    out = render_markdown(body, ctx())
+    assert '<input type="radio" name="q0" value="0"> <code>vaddq_f32</code></label>' in out.html
+    assert "rv-intrinsic" not in out.html
+
+
+def test_quiz_raw_html_is_escaped():
+    body = "```quiz\nquestions:\n  - q: \"<script>alert(1)</script>?\"\n    choices: ['<b>bold</b>', '`<i>`']\n    answer: 0\n```\n"
+    out = render_markdown(body, ctx())
+    assert "<legend>1. &lt;script&gt;alert(1)&lt;/script&gt;?</legend>" in out.html
+    assert "<script" not in out.html
+    assert "<b>" not in out.html
+    assert "&lt;b&gt;bold&lt;/b&gt;" in out.html
+    assert "<code>&lt;i&gt;</code>" in out.html
+
+
+def test_quiz_plain_text_renders_as_before():
+    body = "```quiz\nquestions:\n  - q: Which is the program's \"main\" & <entry>?\n    choices: [5, add]\n    answer: 0\n```\n"
+    out = render_markdown(body, ctx())
+    # The one intended byte change: an apostrophe is no longer written as &#x27;.
+    assert "<legend>1. Which is the program's &quot;main&quot; &amp; &lt;entry&gt;?</legend>" in out.html
+    assert '<input type="radio" name="q0" value="0"> 5</label>' in out.html
+
+
+def test_quiz_other_markup_shows_as_written():
+    fence = r"""questions:
+  - q: '*em* _u_ [see](@add-fn) a \* b &amp; &copy; lone ` tick \x'
+    choices: ['a\`b` c', plain]
+    answer: 0
+"""
+    q = yaml.safe_load(fence)["questions"][0]
+    assert q["q"] == r"*em* _u_ [see](@add-fn) a \* b &amp; &copy; lone ` tick \x"
+    assert q["choices"][0] == r"a\`b` c"
+    out = render_markdown("```quiz\n" + fence + "```\n", ctx())
+    assert r"<legend>1. *em* _u_ [see](@add-fn) a \* b &amp;amp; &amp;copy; lone ` tick \x</legend>" in out.html
+    assert r'value="0"> a\<code>b</code> c</label>' in out.html
+    assert "<em>" not in out.html
+    assert "rv-anchor" not in out.html
+    assert out.used_anchors == []
+
+
+def _readme_lesson_section() -> str:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    start = readme.index("## Writing a lesson")
+    return " ".join(readme[start : readme.index("\n## ", start)].split())
+
+
+def test_readme_documents_quiz_markup():
+    section = _readme_lesson_section().lower()
+    assert "code span" in section
+    assert "quote" in section
+    assert QUIZ_YAML_ERROR.lower() in section
+
+
+def test_readme_quiz_quoting_example_keeps_backslashes():
+    # The README's quoting example, with a backslash in its code span, must show it as written.
+    q_line = re.search(r"`` (q: .*?) ``", _readme_lesson_section()).group(1)
+    q_line = q_line.replace("`vaddq_f32`", r"`\n`")
+    out = render_markdown("```quiz\nquestions:\n  - " + q_line + "\n    choices: [a, b]\n    answer: 0\n```\n", ctx())
+    assert r"<code>\n</code>" in out.html
 
 
 def test_ordinary_markdown_still_works():

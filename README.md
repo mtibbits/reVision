@@ -61,6 +61,13 @@ Piper is unavailable.
   too), `![Alt](diagrams/x.dot)` inlines a Graphviz diagram (give a node `id="anchor-name"` to
   make it hover and click like a phrase), and a fenced block with the language `quiz` adds a
   page-local knowledge check.
+- In a quiz, a question's `q` and its `choices` accept one kind of markup: a backtick code span,
+  which renders as inline code (not linked to vendor documentation). Anything else, raw HTML and
+  backslashes included, shows as written, so a backslash does not stop a backtick from opening a
+  code span. YAML does not allow an unquoted value to begin with a backtick, so single-quote a `q`
+  or choice that starts with one (`` q: '`vaddq_f32` adds how many lanes?' ``); unquoted, the
+  build fails with "quiz block is not valid YAML". Use single quotes, not double: inside double
+  quotes YAML reads a backslash as an escape, so `` `\n` `` would lose its backslash.
 - `narration.yaml` is a list of segments: `text` plus what to `show`, and optionally a `diagram`
   and `node` to bring into view. Timings are derived by `rv2 narrate`, never typed. If the words
   change and `narrate` is not rerun, `build` fails with the diff.

@@ -6,7 +6,8 @@ Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
   `name` (inline code)     auto-linked when the name is in a vendor table; unlinked ones are
                            recorded on RenderedLesson.unlinked_code
   ![alt](diagrams/x.dot)   inline pre-rendered SVG in a <figure class="rv-diagram">
-  ```quiz ... ```          page-local knowledge check widget
+  ```quiz ... ```          page-local knowledge check widget; code spans in its text render as
+                           plain <code>, never vendor-linked
 """
 
 from __future__ import annotations
@@ -97,6 +98,12 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
                 tok.attrs = {"class": "rv-intrinsic", "href": url, "target": "_blank", "rel": "noopener"}
 
 
+# Quiz text accepts code spans only: raw HTML, emphasis, links, entities and backslash escapes show
+# as written, and a code span is never a vendor link (an <a> inside a choice's <label> would take
+# the click meant for the radio button).
+_quiz_text = MarkdownIt("zero").enable("backticks").renderInline
+
+
 def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
     try:
         data = yaml.safe_load(source) or {}
@@ -116,9 +123,9 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
         answer = q.get("answer")
         if not isinstance(answer, int) or isinstance(answer, bool) or not 0 <= answer < len(choices):
             raise BuildError(f"{ctx.where}:{line}: quiz question {n} answer must be an index into choices")
-        parts.append(f'<fieldset class="rv-q" data-answer="{answer}"><legend>{n}. {html.escape(q["q"])}</legend>')
+        parts.append(f'<fieldset class="rv-q" data-answer="{answer}"><legend>{n}. {_quiz_text(q["q"])}</legend>')
         for ci, choice in enumerate(choices):
-            parts.append(f'<label><input type="radio" name="q{qi}" value="{ci}"> {html.escape(str(choice))}</label>')
+            parts.append(f'<label><input type="radio" name="q{qi}" value="{ci}"> {_quiz_text(str(choice))}</label>')
         parts.append('<p class="rv-q-feedback" hidden></p></fieldset>')
     parts += [
         '<button type="submit">Check answers</button>',
