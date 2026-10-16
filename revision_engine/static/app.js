@@ -182,6 +182,9 @@
         if (seg.node) { const node = fig.querySelector('[data-node="' + seg.node + '"]'); if (node) node.classList.add("rv-node-active"); }
       }
     }
+    revealSeg(index);
+  }
+  function revealSeg(index) {
     const el = segEls[index];
     if (el) el.scrollIntoView({ block: "nearest" });
   }
@@ -202,6 +205,16 @@
   }
   if (mediaEl) {
     const mediaPane = $("rv-media");
+    /* Reader collapse: hides the pane's content but never pauses or removes the media, so playback and cues carry on. */
+    const mediaToggle = $("rv-media-toggle");
+    if (mediaToggle && mediaPane) {
+      mediaToggle.hidden = false;
+      mediaToggle.addEventListener("click", () => {
+        const collapsed = mediaPane.classList.toggle("rv-media-collapsed");
+        mediaToggle.setAttribute("aria-expanded", String(!collapsed));
+        if (!collapsed) revealSeg(activeIndex);
+      });
+    }
     mediaEl.addEventListener("loadedmetadata", () => {
       if (pendingSeekTo !== null) { mediaEl.currentTime = pendingSeekTo; pendingSeekTo = null; }
     });

@@ -106,18 +106,25 @@ body.rv-pinned .rv-line.rv-boxed { border-left-color: var(--rv-pin); }
 .rv-diagram figcaption { font-size: 13px; color: var(--rv-muted); }
 
 /* Media pane */
-.rv-media { border-top: 1px solid var(--rv-line); background: var(--rv-bg-2); padding: 8px 12px; height: var(--rv-media-h); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
+.rv-media { border-top: 1px solid var(--rv-line); background: var(--rv-bg-2); padding: 8px 12px; height: var(--rv-media-h); display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; column-gap: 0; }
 .rv-media[hidden] { display: none; }
-.rv-media audio, .rv-media video { width: 100%; max-height: 120px; }
-.rv-transcript { margin: 0; padding: 0 0 0 20px; overflow: auto; font-size: 14px; }
+.rv-media audio, .rv-media video { width: 100%; max-height: 120px; grid-row: 1; grid-column: 1; }
+.rv-media-toggle { grid-row: 1; grid-column: 2; align-self: start; margin-left: 6px; border: 1px solid var(--rv-line); background: var(--rv-bg); color: var(--rv-fg); border-radius: 6px; padding: 4px 8px; cursor: pointer; font: 13px/1.4 var(--rv-font); }
+.rv-media-toggle:focus-visible { outline: 2px solid var(--rv-accent); outline-offset: 1px; }
+.rv-media-toggle[hidden] { display: none; }
+.rv-media-toggle[aria-expanded="false"] .rv-media-chev { display: inline-block; transform: rotate(-90deg); }
+.rv-transcript { margin: 0; padding: 0 0 0 20px; overflow: auto; font-size: 14px; grid-row: 2; grid-column: 1 / -1; }
 .rv-seg { cursor: pointer; padding: 2px 4px; border-radius: 4px; color: var(--rv-muted); }
 .rv-seg:hover, .rv-seg:focus { background: var(--rv-bg); outline: none; }
 .rv-seg.rv-active { color: var(--rv-fg); background: var(--rv-box); }
 .rv-media-error { color: var(--rv-muted); }
 /* Media failed to load: message first, transcript scrolls below it, pane shrinks to content up to --rv-media-h. */
 .rv-media.rv-media-failed { height: auto; max-height: var(--rv-media-h); }
-.rv-media-failed .rv-media-error { grid-row: 1; margin: 0; }
-.rv-media-failed .rv-transcript { grid-row: 2; }
+.rv-media-failed .rv-media-error { grid-row: 1; grid-column: 1; margin: 0; }
+/* Collapsed by the reader: only the toggle remains, as a full-width strip; the lesson takes the freed height. */
+.rv-media.rv-media-collapsed { height: auto; max-height: none; padding: 0; border-top-width: 0; display: block; }
+.rv-media-collapsed > :not(.rv-media-toggle) { display: none; }
+.rv-media-collapsed .rv-media-toggle { display: block; width: 100%; margin: 0; border-radius: 0; border: 0; border-top: 1px solid var(--rv-line); text-align: left; }
 
 /* Quiz */
 .rv-quiz { margin-top: 28px; padding: 14px 16px; border: 1px solid var(--rv-line); border-radius: 8px; }
