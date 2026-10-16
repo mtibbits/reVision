@@ -147,6 +147,15 @@ def test_quiz_feedback_adds_one_line_whether_right_or_wrong(hello):
     assert q.bounding_box()["height"] == wrong
 
 
+def test_quiz_text_reads_as_written(hello):
+    assert hello.locator(".rv-q legend").all_inner_texts() == [
+        "1. What does add(2, 3) return?",
+        "2. Which function is the program's entry point?",
+    ]
+    labels = [t.strip() for t in hello.locator(".rv-q label").all_inner_texts()]
+    assert labels == ["5", "6", "23", "add", "main", "printf"]
+
+
 def test_lesson_without_media_has_no_pane_and_no_errors(page, site_url):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
