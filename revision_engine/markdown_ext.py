@@ -8,7 +8,8 @@ Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
   ![alt](diagrams/x.dot)   inline pre-rendered SVG in a <figure class="rv-diagram">
   ```quiz ... ```          page-local knowledge check widget; code spans in its text render as
                            plain <code>, never vendor-linked; choices are shuffled in the browser
-                           unless a question sets `shuffle: false` (data-fixed-order)
+                           unless a question sets `shuffle: false` (data-fixed-order) or has
+                           two choices
 """
 
 from __future__ import annotations
