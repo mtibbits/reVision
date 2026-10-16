@@ -1,12 +1,12 @@
 {
   "files": {
-    "assets/app.3567e141.js": "3567e141279783556ca89b117732aadc4d17aa4a01739ca1c9672095c50c5616",
-    "assets/styles.c15bb447.css": "c15bb447590fcc7b991e73204d2e569f06d41fa8c0e4d0e8136660891d5ff2fd",
+    "assets/app.4a156c84.js": "4a156c84a4a1a967cd00035dcdea184a302c748e4a4ceefd7dc99ed4d996d938",
+    "assets/styles.24b8c9ba.css": "24b8c9bafca2b98aedb8bae5d02a764a1beb36a6e0b8baac92fbe561ac972c04",
     "assets/tokens.39cfa450.css": "39cfa4501b6ba71bc235bd6c2d25a32ab2bffee8ba3a6068d8abf01f6007d66c",
     "index.html": "c748b555cc4ef9f6abcd492a1662b32f4892444a70d130ccfed2edbb693d03b2",
-    "intro/hello/index.html": "e204dfcd270790792ae1ac5cbf07b78a5c2c33b79f42581be179bedc8b15a656",
+    "intro/hello/index.html": "1f74c665a6278b89284388ab8d257ce8239b4c3e560f7c853af4acb399607fc5",
     "intro/hello/media/narration.wav": "2eca95028d915ae895ff7f316ca60a0682f5fca1ee73af621235f94ff033afe7",
-    "intro/quiet/index.html": "68d98ee4814d4bbfcceca26317053d0f4d5d15d0e3fd13173464490bba55a797",
+    "intro/quiet/index.html": "c23f46822ce6e4ba2ee209ce4dfb482d96bb1da6ef583e8244746079c5655f36",
     "site.json": "cd2be74eb4d86f09240ac469d184111c5154a0437ca031be5f553776c7cdf590"
   }
 }

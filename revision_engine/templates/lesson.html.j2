@@ -72,6 +72,7 @@
       {% else %}
       <audio id="rv-media-el" controls preload="metadata" src="{{ m.media_url }}"></audio>
       {% endif %}
+      <button type="button" class="rv-media-toggle" id="rv-media-toggle" aria-expanded="true" hidden><span class="rv-media-chev" aria-hidden="true">▾</span> Narration</button>
       <ol class="rv-transcript" id="rv-transcript">
         {% for s in m.cues or [] %}
         <li class="rv-seg" data-index="{{ loop.index0 }}" data-start="{{ s.start }}" data-end="{{ s.end }}" tabindex="0">{{ s.text }}</li>

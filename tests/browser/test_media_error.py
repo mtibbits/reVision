@@ -83,6 +83,7 @@ def measure(page) -> dict:
             tH: t.getBoundingClientRect().height, tScroll: t.scrollHeight, tClient: t.clientHeight,
             segCount: t.querySelectorAll('.rv-seg').length,
             failedClass: pane.classList.contains('rv-media-failed'),
+            toggleH: document.getElementById('rv-media-toggle').getBoundingClientRect().height,
           };
         })()"""
     )
@@ -130,7 +131,7 @@ def test_failed_pane_fits_content_and_caps(page, long_media_url, site_url, order
     m = measure(page)
     assert m["msgH"] > 0 and m["msgInside"], m
     assert m["paneH"] <= m["cap"] + 0.5, m
-    content = m["borderTop"] + m["padTop"] + m["padBottom"] + m["msgH"] + m["rowGap"] + m["tScroll"]
+    content = m["borderTop"] + m["padTop"] + m["padBottom"] + max(m["msgH"], m["toggleH"]) + m["rowGap"] + m["tScroll"]  # row 1 holds the message and the toggle
     assert m["paneH"] <= content + 1, m
     if case == "short":
         assert m["paneH"] < m["cap"] - 1, m  # the pane shrank to its content
