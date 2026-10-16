@@ -1,12 +1,12 @@
 {
   "files": {
     "assets/app.4a156c84.js": "4a156c84a4a1a967cd00035dcdea184a302c748e4a4ceefd7dc99ed4d996d938",
-    "assets/styles.b1345e37.css": "b1345e370a25a8440c443e47a32d7e326ab0988c783b49561e38356b1d0eda08",
+    "assets/styles.6472f5a2.css": "6472f5a261a80aba52efaaac6eda78f75e6b84c7255bd8a99ed9a9675a47f0fc",
     "assets/tokens.39cfa450.css": "39cfa4501b6ba71bc235bd6c2d25a32ab2bffee8ba3a6068d8abf01f6007d66c",
     "index.html": "c748b555cc4ef9f6abcd492a1662b32f4892444a70d130ccfed2edbb693d03b2",
-    "intro/hello/index.html": "3d4e586d5af2571e95edc8647ffa4eafa8b8282282737e8687aba69e1549f30d",
+    "intro/hello/index.html": "70bd7abcaa522b74645975d3a202bbd37dab9e6fbb6be7c8c44b779d6389b1f0",
     "intro/hello/media/narration.wav": "2eca95028d915ae895ff7f316ca60a0682f5fca1ee73af621235f94ff033afe7",
-    "intro/quiet/index.html": "c266f4357a911937061fce79fd1db4ea158524741b6b5197d9d3d4a77095ffdf",
+    "intro/quiet/index.html": "1e019868cc573b37d1686eaa3417cd540fa7a96f8e3f45c435b3f9e42b5f6679",
     "site.json": "cd2be74eb4d86f09240ac469d184111c5154a0437ca031be5f553776c7cdf590"
   }
 }

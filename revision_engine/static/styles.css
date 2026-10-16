@@ -146,9 +146,13 @@ body.rv-pinned .rv-line.rv-boxed { border-left-color: var(--rv-pin); }
   .rv-main { grid-column: 1; grid-row: 3; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 6px minmax(0, 1fr); height: auto; min-height: 0; }
   .rv-code-pane { border-right: 0; border-bottom: 1px solid var(--rv-line); }
   .rv-splitter { cursor: row-resize; }
-  .rv-right { height: auto; container-type: size; }
+  .rv-right { height: auto; }
   .rv-lesson { padding: 16px; }
-  /* The media pane shares .rv-right with the lesson: cap it at half, so the lesson keeps at least as much (#13). */
-  .rv-media { height: min(var(--rv-media-h), 50cqh); }
-  .rv-media.rv-media-failed { max-height: min(var(--rv-media-h), 50cqh); }
+  /* The media pane shares .rv-right with the lesson: cap it at half, so the lesson keeps at least as much (#13).
+     Guarded because a var() inside min() defeats the cascade fallback: an engine without cq units would make the height auto and grow the pane to fit the transcript. */
+  @supports (height: 1cqh) {
+    .rv-right { container-type: size; }
+    .rv-media { height: min(var(--rv-media-h), 50cqh); }
+    .rv-media.rv-media-failed { max-height: min(var(--rv-media-h), 50cqh); }
+  }
 }

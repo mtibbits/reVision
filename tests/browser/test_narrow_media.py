@@ -86,6 +86,26 @@ def test_wide_layout_unchanged(hello, height):
     assert hello.errors == []
 
 
+def test_cap_waits_for_container_query_support(hello):
+    # An engine without cq units would still accept min(var(--rv-media-h), 50cqh), since it holds a var(),
+    # then find it invalid at computed-value time and drop the pane to height: auto, below the base layout.
+    conditions = hello.evaluate(
+        """(() => {
+          const found = [];
+          const walk = (rules, guard) => {
+            for (const rule of rules) {
+              if (rule.style && rule.style.cssText.includes('cqh')) found.push(guard);
+              if (rule.cssRules) walk(rule.cssRules, rule instanceof CSSSupportsRule ? rule.conditionText : guard);
+            }
+          };
+          for (const sheet of document.styleSheets) walk(sheet.cssRules, null);
+          return found;
+        })()"""
+    )
+    assert len(conditions) == 2, conditions  # the pane's height and the failed pane's max-height
+    assert all(c is not None and "cqh" in c for c in conditions), conditions
+
+
 def test_failed_media_pane_no_taller_than_lesson_when_narrow(page, long_media_url):
     page.set_viewport_size({"width": 700, "height": 500})
     errors = _media_error.fail_media(page, long_media_url, "late")
