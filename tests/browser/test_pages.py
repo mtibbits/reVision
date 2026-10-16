@@ -152,8 +152,9 @@ def test_quiz_text_reads_as_written(hello):
         "1. What does add(2, 3) return?",
         "2. Which function is the program's entry point?",
     ]
-    labels = [t.strip() for t in hello.locator(".rv-q label").all_inner_texts()]
-    assert labels == ["5", "6", "23", "add", "main", "printf"]
+    # Choices are shuffled on load, so compare each question's set of choices.
+    labels = [sorted(t.strip() for t in fs.locator("label").all_inner_texts()) for fs in hello.locator(".rv-q").all()]
+    assert labels == [sorted(["5", "6", "23"]), sorted(["add", "main", "printf"])]
 
 
 def test_lesson_without_media_has_no_pane_and_no_errors(page, site_url):

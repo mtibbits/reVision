@@ -237,6 +237,17 @@
   /* ---- quiz: page-local, nothing stored ---- */
   document.querySelectorAll(".rv-quiz form").forEach((form) => {
     const questions = Array.from(form.querySelectorAll(".rv-q"));
+    /* Choices show in a fresh random order on each load, unless the author fixed it; a two-choice question keeps its order. Grading compares authored indexes, so order does not matter to it. */
+    questions.forEach((q) => {
+      const labels = Array.from(q.querySelectorAll(":scope > label"));
+      if (q.hasAttribute("data-fixed-order") || labels.length < 3) return;
+      for (let i = labels.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [labels[i], labels[j]] = [labels[j], labels[i]];
+      }
+      const fb = q.querySelector(".rv-q-feedback");
+      labels.forEach((l) => q.insertBefore(l, fb));
+    });
     function grade(q) {
       const chosen = q.querySelector("input:checked");
       const fb = q.querySelector(".rv-q-feedback");
