@@ -80,6 +80,7 @@ def test_wide_layout_unchanged(hello, height):
     hello.set_viewport_size({"width": 1400, "height": height})
     hello.wait_for_function(MEDIA_READY)
     g = geometry(hello)
+    assert g["cap"] == 200, g  # AC3 (#13): at 1400x800 the pane stays 200px and the lesson 600px
     assert abs(g["pane"]["height"] - g["cap"]) <= TOL, g
     assert abs(g["lesson"]["height"] - (height - g["cap"])) <= TOL, g
     assert hello.errors == []
