@@ -1,7 +1,7 @@
 # CI passes this file to pip with -c (.github/workflows/test.yml), pinning the runtime
 # dependencies and their dependencies, whose output the golden test
 # (tests/golden/minimal.json) hashes byte-for-byte.
-# pyproject.toml keeps floors only, so `pip install revision-engine` is unaffected.
+# pyproject.toml keeps floors only, so installing the engine in a content repository is unaffected.
 # .github/dependabot.yml asks Dependabot to propose bumps; a bump that changes output
 # reddens the golden test on its PR, where the manifest is regenerated after review.
 # tests/test_ci_constraints.py checks this list against pyproject.toml and, in CI, the installed set.

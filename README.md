@@ -4,7 +4,7 @@ A static-site build tool for teaching code by example. A reader sees a real sour
 file on the left and a lesson about it on the right. Phrases in the lesson box the
 code they describe. A narration track drives the same boxes on a timeline.
 
-Install with `pip install revision-engine`, add a `revision.yaml` and a
+Install the engine as in [step 1](#add-revision-to-a-repository) below, add a `revision.yaml` and a
 `docs/revision/` folder to the repository you want to teach, and run `rv2 build`.
 Revision control, revisited.
 
@@ -12,7 +12,7 @@ Revision control, revisited.
 
 1. Install the engine. Until it is on PyPI, pin a release tag:
    `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.1.4"`.
-   Graphviz (`dot`) must be on the PATH for diagrams.
+   Graphviz (`dot`) must be on the PATH for diagrams, and `git` for the tagged install.
 2. Create `revision.yaml` at the repository root:
    ```yaml
    site: { title: My project by example, base_url: "" }
@@ -80,10 +80,12 @@ Piper is unavailable.
 
 ## Deploy
 
-GitHub Actions: install Python and Graphviz, `pip install revision-engine`, `rv2 build`, then
-upload `public/` with `actions/upload-pages-artifact`. GitLab CI: the same three commands in a
-`pages` job with `public/` as its artifact. `.github/workflows/demo.yml` in this repository builds
-`examples/minimal/` that way.
+GitHub Actions: install Python and Graphviz, install the engine by tag as in
+[step 1](#add-revision-to-a-repository) (pip fetches it with `git`, so the runner needs `git`),
+`rv2 build`, then upload `public/` with `actions/upload-pages-artifact`. GitLab CI: install Python,
+Graphviz and the engine the same way and run `rv2 build` in a `pages` job with `public/` as its
+artifact, on an image that has `git`.
+`.github/workflows/demo.yml` in this repository builds `examples/minimal/` that way.
 
 ## Developing the engine
 
@@ -97,7 +99,7 @@ The golden test compares the built example site byte-for-byte, except that each 
 That reduction was verified identical on Graphviz 16.1.0 (Windows) and on Ubuntu 22.04's `graphviz` 2.42.2 package (which reports itself as 2.43.0); a Graphviz that changes node ids, anchor stamps, edges, or node and edge labels fails the test (graph and cluster labels and link targets are not compared).
 CI runs on the pinned `ubuntu-24.04` image, installs its `graphviz` package (2.42.2) and sets `RV_REQUIRE_GOLDEN=1`, so a skipped or missing golden test fails the job; the gate's message is the last line of the log.
 <!-- tests/test_ci_constraints.py checks that every README line installing .[dev], here and in the fence above, contains INSTALL_CMD from tests/ci_pins.py. -->
-CI installs the runtime dependencies whose output the golden test hashes (Pygments, markdown-it-py, Jinja2, PyYAML and their dependencies) at the versions pinned in `ci-constraints-requirements.txt`; `pyproject.toml` keeps floors only, so `pip install revision-engine` is unaffected. To match CI locally, run `python -m pip install -e ".[dev]" -c ci-constraints-requirements.txt`; after an intentional rendering change, regenerate with `RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py`. `.github/dependabot.yml` asks Dependabot to propose pin bumps; a bump that changes output reddens the golden test on its own PR, where the manifest is regenerated after review.
+CI installs the runtime dependencies whose output the golden test hashes (Pygments, markdown-it-py, Jinja2, PyYAML and their dependencies) at the versions pinned in `ci-constraints-requirements.txt`; `pyproject.toml` keeps floors only, so installing the engine in a content repository is unaffected. To match CI locally, run `python -m pip install -e ".[dev]" -c ci-constraints-requirements.txt`; after an intentional rendering change, regenerate with `RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py`. `.github/dependabot.yml` asks Dependabot to propose pin bumps; a bump that changes output reddens the golden test on its own PR, where the manifest is regenerated after review.
 
 To cut a release, follow [RELEASING.md](RELEASING.md).
 
