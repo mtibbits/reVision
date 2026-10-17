@@ -24,10 +24,10 @@ CARRIERS_HEADING = "## Files that carry the version"
 INSTALL_RE = re.compile(
     r"revision-engine @ git\+https://github\.com/mtibbits/reVision@v(\d+\.\d+\.\d+)"
 )
-# Any mention of the package name, spelled as pip would normalise it (case, -, _, .), that is not
-# the by-tag "@ git+" form installs from PyPI. A module path (name followed by / or . and a word
+# Any mention of the package name, spelled as pip would normalise it (case, runs of -, _, .), that
+# is not in the "@ git+" form installs from PyPI. A module path (name followed by / or . and a word
 # character) is not an install.
-BARE_NAME_RE = re.compile(r"(?i)\brevision[-_.]engine\b(?![./]\w)(?!\s*@\s*git\+)")
+BARE_NAME_RE = re.compile(r"(?i)\brevision[-_.]+engine\b(?![./]\w)(?!\s*@\s*git\+)")
 PYPI_GUARDED = (README, CONSTRAINTS)
 # Path prefixes of tracked files that are never carriers.
 NON_CARRIERS = (
@@ -100,6 +100,7 @@ def test_bare_name_re_flags_pypi_installs_only():
         f"`pip install {PKG}`",
         f"pip3 install {PKG}.",
         "pip install -c c.txt Revision_Engine",
+        "pip install revision__engine",
         f"{PKG}==9.8.7",
         f"python -m pip install '{PKG}'",
     ):
