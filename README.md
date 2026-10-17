@@ -82,8 +82,9 @@ Piper is unavailable.
 
 GitHub Actions: install Python and Graphviz, install the engine by tag as in
 [step 1](#add-revision-to-a-repository) (pip fetches it with `git`, so the runner needs `git`),
-`rv2 build`, then upload `public/` with `actions/upload-pages-artifact`. GitLab CI: install the
-same way and run `rv2 build` in a `pages` job with `public/` as its artifact, on an image that has `git`.
+`rv2 build`, then upload `public/` with `actions/upload-pages-artifact`. GitLab CI: install Python,
+Graphviz and the engine the same way and run `rv2 build` in a `pages` job with `public/` as its
+artifact, on an image that has `git`.
 `.github/workflows/demo.yml` in this repository builds `examples/minimal/` that way.
 
 ## Developing the engine
