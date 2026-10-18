@@ -18,13 +18,12 @@ from __future__ import annotations
 
 import html
 import posixpath
-import re
 from dataclasses import dataclass, field
 from typing import Callable
 
 import yaml
 from markdown_it import MarkdownIt
-from markdown_it.common.utils import escapeHtml
+from markdown_it.common.utils import escapeHtml, isLinkClose, isLinkOpen
 from markdown_it.rules_inline import backtick
 from markdown_it.token import Token
 
@@ -77,37 +76,31 @@ def _close(children: list[Token], open_index: int) -> Token:
     raise AssertionError("link_open without link_close")
 
 
-# A code span in another link's text must not render its own vendor <a> (no <a> inside an <a>):
-# "code" renders it as plain <code>, "text" as its bare escaped text (the link itself became <code>).
-def _stamp_spans(children: list[Token], open_index: int, value: str) -> None:
-    for tok in children[open_index + 1 :]:
-        if tok.type == "link_close":
-            break
-        if tok.type == "code_inline":
-            tok.meta["rv_in_link"] = value
-
-
-# Raw inline HTML <a ...> and </a> are separate html_inline tokens with the link text between them.
-# An unclosed <a> runs to the end of the block, as it would in the browser. <abbr>/<aside> don't match.
-_RAW_A_OPEN = re.compile(r"<a[\s>]", re.I)
-_RAW_A_CLOSE = re.compile(r"</a\s*>", re.I)
-
-
-def _stamp_raw_link_spans(children: list[Token], open_index: int) -> None:
-    for tok in children[open_index + 1 :]:
-        if tok.type == "html_inline" and _RAW_A_CLOSE.match(tok.content):
-            break
-        if tok.type == "code_inline":
-            tok.meta.setdefault("rv_in_link", "code")  # keeps "text" from an enclosing unknown reference
-
-
 def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: RenderedLesson) -> None:
+    # A code span in another link's text must not render its own vendor <a> (no <a> inside an <a>):
+    # "code" renders it as plain <code>, "text" as its bare escaped text (the link itself became <code>).
+    # Markdown links don't nest. Raw inline <a ...> and </a> are separate html_inline tokens around the
+    # link text; an unclosed <a> runs to the end of the block, as it would in the browser.
+    link_stamp: str | None = None
+    in_raw_a = False
     for i, tok in enumerate(children):
-        if tok.type == "html_inline" and _RAW_A_OPEN.match(tok.content):
-            _stamp_raw_link_spans(children, i)
+        if tok.type == "code_inline":
+            stamp = link_stamp or ("code" if in_raw_a else None)
+            if stamp:
+                tok.meta["rv_in_link"] = stamp
+            continue
+        if tok.type == "html_inline":
+            if isLinkOpen(tok.content):
+                in_raw_a = True
+            elif isLinkClose(tok.content):
+                in_raw_a = False
+            continue
+        if tok.type == "link_close":
+            link_stamp = None
             continue
         if tok.type != "link_open":
             continue
+        link_stamp = "code"
         href = tok.attrGet("href") or ""
         if href.startswith("@"):
             name = href[1:]
@@ -123,6 +116,7 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
             if name not in out.used_anchors:
                 out.used_anchors.append(name)
             _close(children, i).tag = "span"
+            link_stamp = None  # an anchor phrase is a <span>, so a span in one still links
         elif href == "!intrinsic":
             name = _link_text(children, i)
             url = ctx.lookup(name)
@@ -131,12 +125,9 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
                 tok.tag = "code"
                 tok.attrs = {}
                 _close(children, i).tag = "code"
-                _stamp_spans(children, i, "text")
+                link_stamp = "text"
             else:
                 tok.attrs = _vendor_attrs(url)
-                _stamp_spans(children, i, "code")
-        else:
-            _stamp_spans(children, i, "code")
 
 
 # Quiz text accepts code spans only: raw HTML, emphasis, links, entities and backslash escapes show
@@ -220,13 +211,12 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
         in_link = tokens[idx].meta.get("rv_in_link")
         if in_link == "text":
             return escapeHtml(content)
-        url = None if in_link == "code" else ctx.lookup(content)
+        code = default_code_inline(tokens, idx, options, env)
+        url = None if in_link else ctx.lookup(content)
         if url is None:
-            if default_code_inline:
-                return default_code_inline(tokens, idx, options, env)
-            return f"<code>{html.escape(content)}</code>"
+            return code
         attrs = "".join(f' {k}="{escapeHtml(v)}"' for k, v in _vendor_attrs(url).items())
-        return f"<a{attrs}><code>{escapeHtml(content)}</code></a>"
+        return f"<a{attrs}>{code}</a>"
 
     def fence(self, tokens, idx, options, env):
         tok = tokens[idx]

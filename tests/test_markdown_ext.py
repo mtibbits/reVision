@@ -81,15 +81,13 @@ def test_backticked_intrinsic_reference_matches_bare_code_span():
     assert a.count("<a ") == 1
 
 
-@pytest.mark.parametrize(
-    "name, expected", [("not_in_any_table", "<code>not_in_any_table</code>"), ("it's", "<code>it's</code>")]
-)
-def test_backticked_unknown_intrinsic_reference_renders_one_code(name, expected):
+@pytest.mark.parametrize("name", ["not_in_any_table", "it's"])
+def test_backticked_unknown_intrinsic_reference_renders_one_code(name):
     c = ctx()
     html = render_markdown(f"[`{name}`](!intrinsic)\n", c).html
     assert html.count("<code>") == 1
     assert "<code><code>" not in html
-    assert expected in html
+    assert f"<code>{name}</code>" in html
     assert "rv-intrinsic" not in html
     assert c.report.warnings == [f"L/lesson.md:1: intrinsic {name!r} is not in any vendor table"]
 
