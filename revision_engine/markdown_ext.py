@@ -3,8 +3,10 @@
 Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
   [phrase](@anchor)        anchor phrase -> <span class="rv-anchor" data-anchor=...>
   [name](!intrinsic)       vendor link   -> <a class="rv-intrinsic" href=...>
-  `name` (inline code)     auto-linked when the name is in a vendor table; unlinked ones are
-                           recorded on RenderedLesson.unlinked_code
+  `name` (inline code)     auto-linked when the name is in a vendor table, except inside another
+                           link's text (Markdown or raw <a>), where it renders as plain <code>; an
+                           anchor phrase is a <span>, so a span in one still links. Spans whose
+                           name is in no table are recorded on RenderedLesson.unlinked_code
   ![alt](diagrams/x.dot)   inline pre-rendered SVG in a <figure class="rv-diagram">
   ```quiz ... ```          page-local knowledge check widget; code spans in its text render as
                            plain <code>, never vendor-linked; choices are shuffled in the browser
