@@ -117,12 +117,23 @@ def test_known_code_span_inside_unknown_intrinsic_reference_is_text():
 
 
 def test_code_span_inside_raw_html_link_is_plain_code():
-    html = render_markdown('<a href="https://example.com/x">`vmlaq_f32`</a>\n', ctx()).html
-    assert html.count("<a ") == 1
+    for src in ('<a href="https://example.com/x">`vmlaq_f32`</a>', '<A HREF="https://example.com/x">`vmlaq_f32`</A >'):
+        html = render_markdown(src + "\n", ctx()).html
+        assert html.count("<a ") + html.count("<A ") == 1
+        assert "rv-intrinsic" not in html
+    # An unclosed <a> runs to the end of the inline block.
+    html = render_markdown('<a href="https://example.com/x">see `vmlaq_f32`\n', ctx()).html
     assert "rv-intrinsic" not in html
     # <abbr> is not <a>: its span still links.
     html = render_markdown("<abbr>`vmlaq_f32`</abbr>\n", ctx()).html
     assert '<abbr><a class="rv-intrinsic"' in html
+
+
+@pytest.mark.parametrize("link", ["[x](https://example.com/x)", '<a href="https://example.com/x">x</a>'])
+def test_code_span_after_closed_link_still_vendor_links(link):
+    html = render_markdown(f"{link} then `vmlaq_f32`\n", ctx()).html
+    assert '<a class="rv-intrinsic"' in html
+    assert html.count("<a ") == 2
 
 
 def test_code_span_inside_anchor_phrase_stays_vendor_link():

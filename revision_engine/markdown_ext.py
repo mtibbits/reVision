@@ -80,7 +80,7 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
     # A code span in another link's text must not render its own vendor <a> (no <a> inside an <a>):
     # "code" renders it as plain <code>, "text" as its bare escaped text (the link itself became <code>).
     # Markdown links don't nest. Raw inline <a ...> and </a> are separate html_inline tokens around the
-    # link text; an unclosed <a> runs to the end of the block, as it would in the browser.
+    # link text; an unclosed <a> runs to the end of the inline block (a browser would carry it further).
     link_stamp: str | None = None
     in_raw_a = False
     for i, tok in enumerate(children):
