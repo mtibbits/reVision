@@ -21,6 +21,7 @@ from typing import Callable
 
 import yaml
 from markdown_it import MarkdownIt
+from markdown_it.common.utils import escapeHtml
 from markdown_it.rules_inline import backtick
 from markdown_it.token import Token
 
@@ -47,6 +48,10 @@ class RenderedLesson:
     unlinked_code: list[tuple[int, str]] = field(default_factory=list)  # (file line, span text)
 
 
+def _vendor_attrs(url: str) -> dict[str, str]:
+    return {"class": "rv-intrinsic", "href": url, "target": "_blank", "rel": "noopener"}
+
+
 def _line(token: Token, fallback: int, ctx: RenderContext) -> int:
     body_line = token.map[0] + 1 if token.map else fallback
     return body_line + ctx.line_offset
@@ -67,6 +72,16 @@ def _close(children: list[Token], open_index: int) -> Token:
         if tok.type == "link_close":
             return tok
     raise AssertionError("link_open without link_close")
+
+
+# A code span in another link's text must not render its own vendor <a> (no <a> inside an <a>):
+# "code" renders it as plain <code>, "text" as its bare escaped text (the link itself became <code>).
+def _stamp_spans(children: list[Token], open_index: int, value: str) -> None:
+    for tok in children[open_index + 1 :]:
+        if tok.type == "link_close":
+            break
+        if tok.type == "code_inline":
+            tok.meta["rv_in_link"] = value
 
 
 def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: RenderedLesson) -> None:
@@ -96,8 +111,12 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
                 tok.tag = "code"
                 tok.attrs = {}
                 _close(children, i).tag = "code"
+                _stamp_spans(children, i, "text")
             else:
-                tok.attrs = {"class": "rv-intrinsic", "href": url, "target": "_blank", "rel": "noopener"}
+                tok.attrs = _vendor_attrs(url)
+                _stamp_spans(children, i, "code")
+        else:
+            _stamp_spans(children, i, "code")
 
 
 # Quiz text accepts code spans only: raw HTML, emphasis, links, entities and backslash escapes show
@@ -178,15 +197,16 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
 
     def code_inline(self, tokens, idx, options, env):
         content = tokens[idx].content
-        url = ctx.lookup(content)
+        in_link = tokens[idx].meta.get("rv_in_link")
+        if in_link == "text":
+            return escapeHtml(content)
+        url = None if in_link == "code" else ctx.lookup(content)
         if url is None:
             if default_code_inline:
                 return default_code_inline(tokens, idx, options, env)
             return f"<code>{html.escape(content)}</code>"
-        return (
-            f'<a class="rv-intrinsic" href="{html.escape(url)}" target="_blank" rel="noopener">'
-            f"<code>{html.escape(content)}</code></a>"
-        )
+        attrs = "".join(f' {k}="{escapeHtml(v)}"' for k, v in _vendor_attrs(url).items())
+        return f"<a{attrs}><code>{escapeHtml(content)}</code></a>"
 
     def fence(self, tokens, idx, options, env):
         tok = tokens[idx]
