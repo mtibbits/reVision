@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import html
 import posixpath
+import re
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -84,8 +85,25 @@ def _stamp_spans(children: list[Token], open_index: int, value: str) -> None:
             tok.meta["rv_in_link"] = value
 
 
+# Raw inline HTML <a ...> and </a> are separate html_inline tokens with the link text between them.
+# An unclosed <a> runs to the end of the block, as it would in the browser. <abbr>/<aside> don't match.
+_RAW_A_OPEN = re.compile(r"<a[\s>]", re.I)
+_RAW_A_CLOSE = re.compile(r"</a\s*>", re.I)
+
+
+def _stamp_raw_link_spans(children: list[Token], open_index: int) -> None:
+    for tok in children[open_index + 1 :]:
+        if tok.type == "html_inline" and _RAW_A_CLOSE.match(tok.content):
+            break
+        if tok.type == "code_inline":
+            tok.meta.setdefault("rv_in_link", "code")  # keeps "text" from an enclosing unknown reference
+
+
 def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: RenderedLesson) -> None:
     for i, tok in enumerate(children):
+        if tok.type == "html_inline" and _RAW_A_OPEN.match(tok.content):
+            _stamp_raw_link_spans(children, i)
+            continue
         if tok.type != "link_open":
             continue
         href = tok.attrGet("href") or ""
