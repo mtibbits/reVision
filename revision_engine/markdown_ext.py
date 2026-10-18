@@ -3,8 +3,10 @@
 Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
   [phrase](@anchor)        anchor phrase -> <span class="rv-anchor" data-anchor=...>
   [name](!intrinsic)       vendor link   -> <a class="rv-intrinsic" href=...>
-  `name` (inline code)     auto-linked when the name is in a vendor table; unlinked ones are
-                           recorded on RenderedLesson.unlinked_code
+  `name` (inline code)     auto-linked when the name is in a vendor table, except inside another
+                           link's text (Markdown or raw <a>), where it renders as plain <code>; an
+                           anchor phrase is a <span>, so a span in one still links. Spans whose
+                           name is in no table are recorded on RenderedLesson.unlinked_code
   ![alt](diagrams/x.dot)   inline pre-rendered SVG in a <figure class="rv-diagram">
   ```quiz ... ```          page-local knowledge check widget; code spans in its text render as
                            plain <code>, never vendor-linked; choices are shuffled in the browser
@@ -21,6 +23,7 @@ from typing import Callable
 
 import yaml
 from markdown_it import MarkdownIt
+from markdown_it.common.utils import escapeHtml, isLinkClose, isLinkOpen
 from markdown_it.rules_inline import backtick
 from markdown_it.token import Token
 
@@ -47,6 +50,10 @@ class RenderedLesson:
     unlinked_code: list[tuple[int, str]] = field(default_factory=list)  # (file line, span text)
 
 
+def _vendor_attrs(url: str) -> dict[str, str]:
+    return {"class": "rv-intrinsic", "href": url, "target": "_blank", "rel": "noopener"}
+
+
 def _line(token: Token, fallback: int, ctx: RenderContext) -> int:
     body_line = token.map[0] + 1 if token.map else fallback
     return body_line + ctx.line_offset
@@ -70,9 +77,30 @@ def _close(children: list[Token], open_index: int) -> Token:
 
 
 def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: RenderedLesson) -> None:
+    # A code span in another link's text must not render its own vendor <a> (no <a> inside an <a>):
+    # "code" renders it as plain <code>, "text" as its bare escaped text (the link itself became <code>).
+    # Markdown links don't nest. Raw inline <a ...> and </a> are separate html_inline tokens around the
+    # link text; an unclosed <a> runs to the end of the inline block (a browser would carry it further).
+    link_stamp: str | None = None
+    in_raw_a = False
     for i, tok in enumerate(children):
+        if tok.type == "code_inline":
+            stamp = link_stamp or ("code" if in_raw_a else None)
+            if stamp:
+                tok.meta["rv_in_link"] = stamp
+            continue
+        if tok.type == "html_inline":
+            if isLinkOpen(tok.content):
+                in_raw_a = True
+            elif isLinkClose(tok.content):
+                in_raw_a = False
+            continue
+        if tok.type == "link_close":
+            link_stamp = None
+            continue
         if tok.type != "link_open":
             continue
+        link_stamp = "code"
         href = tok.attrGet("href") or ""
         if href.startswith("@"):
             name = href[1:]
@@ -88,6 +116,7 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
             if name not in out.used_anchors:
                 out.used_anchors.append(name)
             _close(children, i).tag = "span"
+            link_stamp = None  # an anchor phrase is a <span>, so a span in one still links
         elif href == "!intrinsic":
             name = _link_text(children, i)
             url = ctx.lookup(name)
@@ -96,8 +125,9 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
                 tok.tag = "code"
                 tok.attrs = {}
                 _close(children, i).tag = "code"
+                link_stamp = "text"
             else:
-                tok.attrs = {"class": "rv-intrinsic", "href": url, "target": "_blank", "rel": "noopener"}
+                tok.attrs = _vendor_attrs(url)
 
 
 # Quiz text accepts code spans only: raw HTML, emphasis, links, entities and backslash escapes show
@@ -178,15 +208,15 @@ def render_markdown(body: str, ctx: RenderContext) -> RenderedLesson:
 
     def code_inline(self, tokens, idx, options, env):
         content = tokens[idx].content
-        url = ctx.lookup(content)
+        in_link = tokens[idx].meta.get("rv_in_link")
+        if in_link == "text":
+            return escapeHtml(content)
+        code = default_code_inline(tokens, idx, options, env)
+        url = None if in_link else ctx.lookup(content)
         if url is None:
-            if default_code_inline:
-                return default_code_inline(tokens, idx, options, env)
-            return f"<code>{html.escape(content)}</code>"
-        return (
-            f'<a class="rv-intrinsic" href="{html.escape(url)}" target="_blank" rel="noopener">'
-            f"<code>{html.escape(content)}</code></a>"
-        )
+            return code
+        attrs = "".join(f' {k}="{escapeHtml(v)}"' for k, v in _vendor_attrs(url).items())
+        return f"<a{attrs}>{code}</a>"
 
     def fence(self, tokens, idx, options, env):
         tok = tokens[idx]

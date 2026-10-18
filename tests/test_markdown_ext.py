@@ -74,6 +74,81 @@ def test_bare_code_autolinks_riscv_intrinsic():
     assert out.html.count("rv-intrinsic") == 1
 
 
+def test_backticked_intrinsic_reference_matches_bare_code_span():
+    a = render_markdown("[`vmlaq_f32`](!intrinsic)\n", ctx()).html
+    b = render_markdown("`vmlaq_f32`\n", ctx()).html
+    assert a == b
+    assert a.count("<a ") == 1
+
+
+@pytest.mark.parametrize("name", ["not_in_any_table", "it's"])
+def test_backticked_unknown_intrinsic_reference_renders_one_code(name):
+    c = ctx()
+    html = render_markdown(f"[`{name}`](!intrinsic)\n", c).html
+    assert html.count("<code>") == 1
+    assert "<code><code>" not in html
+    assert f"<code>{name}</code>" in html
+    assert "rv-intrinsic" not in html
+    assert c.report.warnings == [f"L/lesson.md:1: intrinsic {name!r} is not in any vendor table"]
+
+
+@pytest.mark.parametrize("src", ["[`vmlaq_f32`](https://example.com/x)", "[see `vmlaq_f32`](https://example.com/x)"])
+def test_code_span_inside_url_link_is_plain_code(src):
+    html = render_markdown(src + "\n", ctx()).html
+    assert html.count("<a ") == 1
+    assert "rv-intrinsic" not in html
+    assert '<a href="https://example.com/x">' in html
+    assert "<code>vmlaq_f32</code>" in html
+
+
+def test_code_span_in_emphasis_inside_link_is_plain_code():
+    html = render_markdown("[**`vmlaq_f32`**](!intrinsic)\n", ctx()).html
+    assert html.count("<a ") == 1
+    assert "<strong><code>vmlaq_f32</code></strong>" in html
+
+
+def test_known_code_span_inside_unknown_intrinsic_reference_is_text():
+    # The unknown link is already reported; its known span does not keep a vendor link inside the <code>.
+    c = ctx()
+    html = render_markdown("[`vmlaq_f32` overview](!intrinsic)\n", c).html
+    assert "<code>vmlaq_f32 overview</code>" in html
+    assert html.count("<a ") == 0
+    assert c.report.warnings == ["L/lesson.md:1: intrinsic 'vmlaq_f32 overview' is not in any vendor table"]
+
+
+def test_code_span_inside_raw_html_link_is_plain_code():
+    for src in ('<a href="https://example.com/x">`vmlaq_f32`</a>', '<A HREF="https://example.com/x">`vmlaq_f32`</A >'):
+        html = render_markdown(src + "\n", ctx()).html
+        assert html.count("<a ") + html.count("<A ") == 1
+        assert "rv-intrinsic" not in html
+    # An unclosed <a> runs to the end of the inline block.
+    html = render_markdown('<a href="https://example.com/x">see `vmlaq_f32`\n', ctx()).html
+    assert "rv-intrinsic" not in html
+    # Inside both a raw <a> and an unknown reference, the reference's bare text wins.
+    html = render_markdown('<a href="https://example.com/x">[`vmlaq_f32` ov](!intrinsic)</a>\n', ctx()).html
+    assert "<code><code>" not in html
+    assert "<code>vmlaq_f32 ov</code>" in html
+    # <abbr> is not <a>: its span still links.
+    html = render_markdown("<abbr>`vmlaq_f32`</abbr>\n", ctx()).html
+    assert '<abbr><a class="rv-intrinsic"' in html
+
+
+@pytest.mark.parametrize("link", ["[x](https://example.com/x)", '<a href="https://example.com/x">x</a>'])
+def test_code_span_after_closed_link_still_vendor_links(link):
+    html = render_markdown(f"{link} then `vmlaq_f32`\n", ctx()).html
+    assert '<a class="rv-intrinsic"' in html
+    assert html.count("<a ") == 2
+
+
+def test_code_span_inside_anchor_phrase_stays_vendor_link():
+    html = render_markdown("[`vmlaq_f32`](@add-fn)\n", ctx()).html
+    assert (
+        '<span class="rv-anchor" data-anchor="add-fn" tabindex="0">'
+        '<a class="rv-intrinsic" href="https://developer.arm.com/'
+    ) in html
+    assert html.count("<a ") == 1
+
+
 def test_dot_image_inlines_diagram():
     out = render_markdown("![Call flow](diagrams/flow.dot)\n", ctx())
     assert '<figure class="rv-diagram" id="diagram-flow" data-diagram="flow">' in out.html
