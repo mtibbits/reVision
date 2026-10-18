@@ -124,6 +124,10 @@ def test_code_span_inside_raw_html_link_is_plain_code():
     # An unclosed <a> runs to the end of the inline block.
     html = render_markdown('<a href="https://example.com/x">see `vmlaq_f32`\n', ctx()).html
     assert "rv-intrinsic" not in html
+    # Inside both a raw <a> and an unknown reference, the reference's bare text wins.
+    html = render_markdown('<a href="https://example.com/x">[`vmlaq_f32` ov](!intrinsic)</a>\n', ctx()).html
+    assert "<code><code>" not in html
+    assert "<code>vmlaq_f32 ov</code>" in html
     # <abbr> is not <a>: its span still links.
     html = render_markdown("<abbr>`vmlaq_f32`</abbr>\n", ctx()).html
     assert '<abbr><a class="rv-intrinsic"' in html
