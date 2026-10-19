@@ -137,6 +137,31 @@ def test_quiz_grades_and_forgets(hello):
     assert hello.evaluate("document.querySelectorAll('.rv-quiz input:checked').length") == 0
 
 
+def test_quiz_forgets_after_back(page, site_url):
+    page.add_init_script('addEventListener("pageshow", e => { (window.__rvShows ||= []).push(e.persisted); })')
+    errors = _goto_collecting_errors(page, site_url + "intro/hello/")
+    page.wait_for_function("window.RV !== undefined")
+    page.check('input[name="q0"][value="0"]')
+    page.check('input[name="q1"][value="2"]')
+    assert page.locator('.rv-q[data-answer="0"] .rv-q-feedback').is_visible()
+    page.goto(site_url + "intro/quiet/")
+    page.go_back()
+    page.wait_for_url("**/intro/hello/")
+    page.wait_for_function("window.RV !== undefined && Array.isArray(window.__rvShows)")
+    assert page.evaluate("window.__rvShows") == [False], (
+        "page came from the back/forward cache; Playwright normally disables it in Chromium"
+    )
+    # the hello quiz: two questions of three choices
+    assert page.evaluate("document.querySelectorAll('.rv-quiz input[type=radio]').length") == 6
+    assert page.evaluate("document.querySelectorAll('.rv-quiz input:checked').length") == 0
+    # Belt and braces: these catch a future change that grades on load.
+    assert page.locator(".rv-q-feedback").count() == 2
+    assert all(f.is_hidden() for f in page.locator(".rv-q-feedback").all())
+    assert page.locator(".rv-quiz-score").count() == 1
+    assert page.locator(".rv-quiz-score").is_hidden()
+    assert errors == []
+
+
 def test_quiz_feedback_adds_one_line_whether_right_or_wrong(hello):
     q = hello.locator('.rv-q[data-answer="0"]')
     hello.check('input[name="q0"][value="1"]')
