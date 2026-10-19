@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from . import test_media_error as _media_error
@@ -62,6 +64,36 @@ def test_narrow_media_pane_leaves_lesson_room(hello, height):
     assert in_viewport(g["cue"], g), g  # belt-and-braces, as above
     # Last, so a too-small cap still fails at the placement asserts above; at 700x900 the cap binds.
     assert abs(g["pane"]["height"] - min(g["cap"], g["right"]["height"] / 2)) <= TOL, g
+    assert hello.errors == []
+
+
+def test_audio_cap_leaves_first_cue_room(hello):
+    """Pins the audio cap Firefox needs (#45): Firefox sizes the player's grid row from its declared max-height,
+    not its controls, so this reads that declared value and runs in Chromium-only CI. A red at the budget assert is a
+    Firefox overflow; a red at the >= 54 assert is Chromium's controls squeezed. It does not see a height/min-height
+    on audio, a narrow @media rule that changes the pane, or a Firefox intrinsic-size change (the test above does)."""
+    hello.set_viewport_size({"width": 700, "height": 500})
+    hello.wait_for_function(MEDIA_READY)
+    v = hello.evaluate(
+        """(() => {
+          const pane = document.getElementById('rv-media');
+          const player = document.getElementById('rv-media-el');
+          const ps = getComputedStyle(pane);
+          return {
+            contentH: pane.getBoundingClientRect().height
+              - parseFloat(ps.borderTopWidth) - parseFloat(ps.borderBottomWidth)
+              - parseFloat(ps.paddingTop) - parseFloat(ps.paddingBottom),
+            maxH: parseFloat(getComputedStyle(player).maxHeight),
+            rowGap: parseFloat(ps.rowGap),
+            cueH: document.querySelector('.rv-seg').getBoundingClientRect().height,
+            tag: player.tagName,
+          };
+        })()"""
+    )
+    assert v["tag"] == "AUDIO", v  # intro/hello/ must stay an audio lesson, or this guards nothing
+    assert math.isfinite(v["maxH"]), v  # an uncapped player fails here, not through a NaN comparison
+    assert v["maxH"] >= 54, v  # Chromium's audio control height; a lower cap squeezes its controls
+    assert v["maxH"] + v["rowGap"] + v["cueH"] <= v["contentH"] + TOL, v  # Firefox's row budget at 700x500
     assert hello.errors == []
 
 

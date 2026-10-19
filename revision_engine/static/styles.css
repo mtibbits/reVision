@@ -109,6 +109,8 @@ body.rv-pinned .rv-line.rv-boxed { border-left-color: var(--rv-pin); }
 .rv-media { border-top: 1px solid var(--rv-line); background: var(--rv-bg-2); padding: 8px 12px; height: var(--rv-media-h); display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; column-gap: 0; }
 .rv-media[hidden] { display: none; }
 .rv-media audio, .rv-media video { width: 100%; max-height: 120px; grid-row: 1; grid-column: 1; }
+/* Firefox sizes the player's grid row from a 150px default height, not its 40px controls (#45); 54px is Chromium's, so only Firefox changes. */
+.rv-media audio { max-height: 54px; }
 .rv-media-toggle { grid-row: 1; grid-column: 2; align-self: start; margin-left: 6px; border: 1px solid var(--rv-line); background: var(--rv-bg); color: var(--rv-fg); border-radius: 6px; padding: 4px 8px; cursor: pointer; font: 13px/1.4 var(--rv-font); }
 .rv-media-toggle:focus-visible { outline: 2px solid var(--rv-accent); outline-offset: 1px; }
 .rv-media-toggle[hidden] { display: none; }
