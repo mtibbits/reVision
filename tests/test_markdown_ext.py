@@ -182,6 +182,12 @@ def test_quiz_fence_renders_widget():
     assert "Check answers" in out.html
 
 
+def test_quiz_form_turns_off_restoration():
+    out = render_markdown(QUIZ, ctx())
+    assert '<form autocomplete="off">' in out.html
+    assert "<form>" not in out.html
+
+
 def test_quiz_validation():
     bad = "```quiz\nquestions:\n  - q: x\n    choices: [only]\n    answer: 3\n```\n"
     with pytest.raises(BuildError, match=r"L/lesson\.md:1: quiz question 1 needs at least two choices"):

@@ -144,7 +144,9 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
     questions = data.get("questions") if isinstance(data, dict) else None
     if not isinstance(questions, list) or not questions:
         raise BuildError(f"{ctx.where}:{line}: quiz block needs a non-empty 'questions' list")
-    parts = ['<section class="rv-quiz">', "<h2>Knowledge check</h2>", "<form>"]
+    # Browsers otherwise restore checked answers (Firefox after a reload, all three engines after Back; #46); the quiz
+    # forgets by design. Fixed here, not by form.reset() in app.js: restore timing may vary by engine (unmeasured).
+    parts = ['<section class="rv-quiz">', "<h2>Knowledge check</h2>", '<form autocomplete="off">']
     for qi, q in enumerate(questions):
         n = qi + 1
         if not isinstance(q, dict) or not isinstance(q.get("q"), str):
