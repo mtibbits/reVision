@@ -262,6 +262,11 @@ def test_quiz_unknown_key_reported_before_missing_q():
         render_markdown(body, ctx())
 
 
+def test_quiz_non_mapping_question_needs_q():
+    with pytest.raises(BuildError, match=r"L/lesson\.md:1: quiz question 1 needs a 'q' string$"):
+        render_markdown(_quiz("questions:\n  - just text\n"), ctx())
+
+
 def test_quiz_level_shuffle_says_it_goes_on_each_question():
     match = r"L/lesson\.md:1: quiz block has unknown key 'shuffle' \(accepted: questions\); 'shuffle' goes on each question$"
     with pytest.raises(BuildError, match=match):
