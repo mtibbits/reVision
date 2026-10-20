@@ -104,6 +104,14 @@ def test_click_on_anchored_linked_node_pins(links):
     assert links.popups == []
 
 
+def test_enter_on_anchored_linked_node_pins(links):
+    links.locator(NODE).focus()
+    links.keyboard.press("Enter")
+    links.wait_for_function("location.hash === '#add-fn'")
+    assert "rv-pinned" in (links.locator(NODE).get_attribute("class") or "").split()
+    assert links.popups == []
+
+
 def test_free_node_link_still_navigates(links):
     links.click(FREE + " text")
     links.wait_for_url("https://example.com/printf", timeout=WINDOW_MS)

@@ -17,10 +17,11 @@ _STRIP_RES = (
 )
 _NODE_RE = re.compile(r'<g id="([^"]+)" class="node"')
 _SVG_OPEN_RE = re.compile(r"<svg\b")
-_G_OPEN_RE = re.compile(r"<g\b[^>]*>")
+# Quote-aware: render_dot unescapes ids, so a quoted attribute value may hold a raw '>'.
+_G_OPEN_RE = re.compile(r'<g\b(?:[^>"]|"[^"]*")*>')
 _CLASS_RE = re.compile(r'(?<![\w-])class="([^"]*)"')
 _ANCHOR_ATTR_RE = re.compile(r'(?<![\w-])data-anchor="([^"]*)"')
-_A_OPEN_RE = re.compile(r"<a\b[^>]*>")
+_A_OPEN_RE = re.compile(r'<a\b(?:[^>"]|"[^"]*")*>')
 _HAS_LINK_RE = re.compile(r'\s(?:xlink:)?href="')
 _LINK_ATTR_RE = re.compile(r'\s(?:xlink:)?href="[^"]*"|\starget="[^"]*"')
 _GROUP_KINDS = {"node", "edge", "cluster", "graph"}

@@ -131,6 +131,19 @@ def test_unlink_class_token_not_prefix():
     assert names == ["X"]
 
 
+def test_unlink_follower_id_with_raw_gt_still_ends_span():
+    svg = (
+        "<svg>"
+        + _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x"')
+        + '<g id="b>c" class="node" data-node="b>c"><a xlink:href="https://e.com/b"><text>b</text></a></g>'
+        "</svg>"
+    )
+    out, names = unlink_anchors(svg)
+    assert 'xlink:href="https://e.com/b"' in out
+    assert "e.com/x" not in out
+    assert names == ["X"]
+
+
 def test_unlink_reports_node_once_for_several_links():
     svg = (
         '<svg><g id="X" class="node rv-svg-anchor" data-node="X" data-anchor="X">'
@@ -192,3 +205,18 @@ def test_unlink_on_real_graphviz_output(tmp_path):
     assert "e.com/a" not in out and "e.com/b" not in out
     assert 'xlink:title="tip"' in out
     assert "e.com/d" in out
+
+
+@needs_dot
+def test_unlink_strips_html_label_hrefs_on_real_graphviz_output(tmp_path):
+    p = tmp_path / "html.dot"
+    p.write_text(
+        'digraph { a [id="a-html", shape=plaintext, label=<<TABLE HREF="https://e.com/t">'
+        '<TR><TD HREF="https://e.com/td">x</TD></TR></TABLE>>]; }\n',
+        encoding="utf-8",
+    )
+    stamped = stamp_anchors(render_dot(p, "L/diagrams/html.dot"), {"a-html"})
+    assert "e.com/t" in stamped and "e.com/td" in stamped
+    out, names = unlink_anchors(stamped)
+    assert names == ["a-html"]
+    assert "e.com/t" not in out
