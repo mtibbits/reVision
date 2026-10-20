@@ -11,7 +11,8 @@ Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
   ```quiz ... ```          page-local knowledge check widget; code spans in its text render as
                            plain <code>, never vendor-linked; choices are shuffled in the browser
                            unless a question sets `shuffle: false` (data-fixed-order) or has
-                           two choices
+                           two choices; any key outside _QUESTION_KEYS (or _QUIZ_KEYS, at quiz
+                           level) fails the build
 """
 
 from __future__ import annotations
@@ -135,12 +136,33 @@ def _rewrite_links(children: list[Token], line: int, ctx: RenderContext, out: Re
 # the click meant for the radio button).
 _quiz_text = MarkdownIt("zero").enable("backticks").renderInline
 
+# The keys _quiz_html reads; any other key fails the build, so a misspelled or misplaced
+# `shuffle: false` cannot silently leave a question shuffled (#60).
+_QUIZ_KEYS: tuple[str, ...] = ("questions",)
+_QUESTION_KEYS: tuple[str, ...] = ("q", "choices", "answer", "shuffle")
+
+
+def _unknown_keys(mapping: dict, accepted: tuple[str, ...]) -> list:
+    # Source order; keys may be non-strings (YAML 1.1 loads `on:` as True).
+    return [k for k in mapping if k not in accepted]
+
+
+def _unknown_keys_message(what: str, keys: list, accepted: tuple[str, ...]) -> str:
+    noun = "unknown key" if len(keys) == 1 else "unknown keys"
+    return f"{what} has {noun} {', '.join(repr(k) for k in keys)} (accepted: {', '.join(accepted)})"
+
 
 def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
     try:
         data = yaml.safe_load(source) or {}
     except yaml.YAMLError as e:
         raise BuildError(f"{ctx.where}:{line}: quiz block is not valid YAML: {e}") from e
+    if isinstance(data, dict):
+        unknown = _unknown_keys(data, _QUIZ_KEYS)
+        if unknown:
+            # #57 adds `shuffle` to _QUIZ_KEYS, which drops this hint; #57 and #66 add their keys there.
+            hint = "; 'shuffle' goes on each question" if "shuffle" in unknown else ""
+            raise BuildError(f"{ctx.where}:{line}: {_unknown_keys_message('quiz block', unknown, _QUIZ_KEYS)}{hint}")
     questions = data.get("questions") if isinstance(data, dict) else None
     if not isinstance(questions, list) or not questions:
         raise BuildError(f"{ctx.where}:{line}: quiz block needs a non-empty 'questions' list")
@@ -149,6 +171,10 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
     parts = ['<section class="rv-quiz">', "<h2>Knowledge check</h2>", '<form autocomplete="off">']
     for qi, q in enumerate(questions):
         n = qi + 1
+        if isinstance(q, dict):
+            unknown = _unknown_keys(q, _QUESTION_KEYS)
+            if unknown:
+                raise BuildError(f"{ctx.where}:{line}: {_unknown_keys_message(f'quiz question {n}', unknown, _QUESTION_KEYS)}")
         if not isinstance(q, dict) or not isinstance(q.get("q"), str):
             raise BuildError(f"{ctx.where}:{line}: quiz question {n} needs a 'q' string")
         choices = q.get("choices")
@@ -160,6 +186,12 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
         shuffle = q.get("shuffle", True)
         if not isinstance(shuffle, bool):
             raise BuildError(f"{ctx.where}:{line}: quiz question {n} shuffle must be true or false")
+        # `< 3` mirrors app.js (`labels.length < 3`); test_quiz_two_choice_threshold_matches_app_js pins it.
+        if q.get("shuffle") is True and len(choices) < 3:
+            ctx.report.warn(
+                f"{ctx.where}:{line}: quiz question {n} has two choices, which always keep their order; "
+                "shuffle: true has no effect"
+            )
         fixed = "" if shuffle else " data-fixed-order"
         parts.append(f'<fieldset class="rv-q" data-answer="{answer}"{fixed}><legend>{n}. {_quiz_text(q["q"])}</legend>')
         for ci, choice in enumerate(choices):
