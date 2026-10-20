@@ -260,3 +260,61 @@ def test_check_strict_verdict_follows_report_in_merged_log(src):
     )
     assert r.returncode == 1
     assert r.stdout == f"warning: {w}\n1 warning(s)\nerror: --strict: 1 warning(s)\n"
+
+
+needs_dot = pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz dot not installed")
+FLOW = f"{LESSONS}/01-hello/diagrams/flow.dot"
+
+
+def _link_node(src: Path, node: str, attr: str) -> str:
+    """Add attr to a flow.dot node; return the warning a link on an anchored node gives."""
+    dot = src / FLOW
+    text = dot.read_text(encoding="utf-8")
+    assert text.count(f'id="{node}"') == 1
+    dot.write_text(text.replace(f'id="{node}"', f'id="{node}", {attr}'), encoding="utf-8", newline="\n")
+    return f"{FLOW}: node '{node}' is an anchor; its link is removed"
+
+
+@needs_dot
+def test_check_warns_on_link_on_anchored_node(src, capsys):
+    w = _link_node(src, "add-fn", 'URL="https://example.com/add"')
+    assert _check(src) == 0
+    out, err = capsys.readouterr()
+    assert out == OK + f"warning: {w}\n1 warning(s)\n"
+    assert err == ""
+
+
+@needs_dot
+def test_check_strict_fails_on_link_on_anchored_node(src, capsys):
+    w = _link_node(src, "add-fn", 'URL="https://example.com/add"')
+    assert _check(src, "--strict") == 1
+    out, err = capsys.readouterr()
+    assert out == f"warning: {w}\n1 warning(s)\n"
+    assert err == "error: --strict: 1 warning(s)\n"
+
+
+@needs_dot
+def test_check_no_warning_for_tooltip_only_anchored_node(src, capsys):
+    _link_node(src, "add-fn", 'tooltip="adds"')
+    assert _check(src, "--strict") == 0
+    assert capsys.readouterr().out == OK
+
+
+@needs_dot
+def test_check_no_warning_for_link_on_non_anchored_node(src, capsys):
+    _link_node(src, "printf-node", 'URL="https://example.com/printf"')
+    assert _check(src, "--strict") == 0
+    assert capsys.readouterr().out == OK
+
+
+@needs_dot
+def test_build_strips_anchored_link_and_keeps_free_link(src, tmp_path, capsys):
+    w = _link_node(src, "add-fn", 'URL="https://example.com/add"')
+    _link_node(src, "printf-node", 'href="https://example.com/printf"')
+    out = tmp_path / "site"
+    assert main(["build", "--root", str(src), "--output", str(out), "--commit", FIXED]) == 0
+    html = (out / "intro/hello/index.html").read_text(encoding="utf-8")
+    assert '<g id="add-fn" class="node rv-svg-anchor" data-node="add-fn" data-anchor="add-fn"' in html
+    assert "example.com/add" not in html
+    assert 'xlink:href="https://example.com/printf"' in html
+    assert f"warning: {w}\n" in capsys.readouterr().out

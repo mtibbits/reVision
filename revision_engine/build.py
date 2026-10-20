@@ -18,7 +18,7 @@ from revision_engine.config import (
     load_curriculum,
     load_project_config,
 )
-from revision_engine.diagrams import render_dot, stamp_anchors
+from revision_engine.diagrams import render_dot, stamp_anchors, unlink_anchors
 from revision_engine.errors import BuildError, Report
 from revision_engine.highlight import highlight_source, token_css
 from revision_engine.intrinsics import lookup
@@ -96,8 +96,11 @@ def _build_lesson(cfg: ProjectConfig, chapter: Chapter, ref: LessonRef, report: 
     diagrams_dir = ref.path / "diagrams"
     if diagrams_dir.is_dir():
         for dot in sorted(diagrams_dir.glob("*.dot")):
-            svg = render_dot(dot, f"{where}/diagrams/{dot.name}")
-            diagrams[dot.stem] = stamp_anchors(svg, set(anchors))
+            dwhere = f"{where}/diagrams/{dot.name}"
+            svg, unlinked = unlink_anchors(stamp_anchors(render_dot(dot, dwhere), set(anchors)))
+            for node in unlinked:
+                report.warn(f"{dwhere}: node {node!r} is an anchor; its link is removed")
+            diagrams[dot.stem] = svg
 
     ctx = RenderContext(
         anchors={name: a.file for name, a in anchors.items()},
