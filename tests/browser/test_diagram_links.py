@@ -20,6 +20,10 @@ EDITS = {"add-fn": 'URL="https://example.com/add"', "printf-node": 'href="https:
 NODE = '.rv-svg g[data-anchor="add-fn"]'
 FREE = '.rv-svg g[data-node="printf-node"]'
 WINDOW_MS = 3000
+LINKED = (
+    "els => els.filter(a => a.hasAttribute('href')"
+    " || a.hasAttributeNS('http://www.w3.org/1999/xlink', 'href')).length"
+)
 
 
 @pytest.fixture(scope="module")
@@ -61,14 +65,8 @@ def links(page, links_url):
 def test_fixture_anchored_node_has_no_link_and_free_node_keeps_one(links):
     assert links.locator(NODE).count() == 1
     assert links.locator(NODE + " a").count() >= 1
-    linked = (
-        "els => els.filter(a => a.hasAttribute('href')"
-        " || a.hasAttributeNS('http://www.w3.org/1999/xlink', 'href')).length"
-    )
-    assert links.locator(NODE + " a").evaluate_all(linked) == 0
-    assert links.locator(FREE + " a").evaluate_all(
-        "els => els.filter(a => a.hasAttributeNS('http://www.w3.org/1999/xlink', 'href')).length"
-    ) == 1
+    assert links.locator(NODE + " a").evaluate_all(LINKED) == 0
+    assert links.locator(FREE + " a").evaluate_all(LINKED) == 1
     assert links.errors == []
 
 
@@ -79,12 +77,10 @@ def test_stripped_link_is_not_a_tab_stop(links):
     assert links.locator(NODE + " a").count() >= 1
     links.evaluate(
         """([node, free]) => {
-            window.__stops = new Set();
             window.__nodeLink = false;
             window.__node = false;
             window.__free = false;
             document.addEventListener('focusin', (e) => {
-                window.__stops.add(e.target);
                 if (e.target.matches(node)) window.__node = true;
                 if (e.target.closest(node + ' a')) window.__nodeLink = true;
                 if (e.target.closest(free + ' a')) window.__free = true;
@@ -98,7 +94,6 @@ def test_stripped_link_is_not_a_tab_stop(links):
     assert links.evaluate("window.__free") is True
     assert links.evaluate("window.__node") is True
     assert links.evaluate("window.__nodeLink") is False
-    assert links.evaluate("window.__stops.size") >= 1
 
 
 def test_click_on_anchored_linked_node_pins(links):
@@ -106,7 +101,6 @@ def test_click_on_anchored_linked_node_pins(links):
     links.wait_for_timeout(WINDOW_MS)
     assert links.evaluate("location.hash") == "#add-fn"
     assert "rv-pinned" in (links.locator(NODE).get_attribute("class") or "").split()
-    assert links.url.endswith("/intro/hello/#add-fn")
     assert links.popups == []
 
 

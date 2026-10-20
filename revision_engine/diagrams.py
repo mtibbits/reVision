@@ -76,29 +76,32 @@ def unlink_anchors(svg: str) -> tuple[str, list[str]]:
 
     Returns the new SVG and the sorted names of the anchored nodes that held a link.
     """
+    if 'data-anchor="' not in svg:
+        return svg, []
     groups = []
     for m in _G_OPEN_RE.finditer(svg):
         cls = _CLASS_RE.search(m.group(0))
         if cls and _GROUP_KINDS.intersection(cls.group(1).split()):
             groups.append(m)
+    ends = [g.start() for g in groups[1:]] + [len(svg)]
 
     def unlink(m: re.Match) -> str:
         tag = m.group(0)
         return _LINK_ATTR_RE.sub("", tag) if _HAS_LINK_RE.search(tag) else tag
 
     out: list[str] = []
-    names: set[str] = set()
+    names: list[str] = []
     pos = 0
-    for i, g in enumerate(groups):
+    for g, end in zip(groups, ends):
         anchor = _ANCHOR_ATTR_RE.search(g.group(0))
         if anchor is None:
             continue
-        end = groups[i + 1].start() if i + 1 < len(groups) else len(svg)
         span = svg[g.end() : end]
-        if any(_HAS_LINK_RE.search(a.group(0)) for a in _A_OPEN_RE.finditer(span)):
-            names.add(anchor.group(1))
+        new = _A_OPEN_RE.sub(unlink, span)
+        if new != span:
+            names.append(anchor.group(1))
             out.append(svg[pos : g.end()])
-            out.append(_A_OPEN_RE.sub(unlink, span))
+            out.append(new)
             pos = end
     out.append(svg[pos:])
     return "".join(out), sorted(names)

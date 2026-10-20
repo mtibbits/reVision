@@ -100,18 +100,20 @@ def test_unlink_leaves_non_anchored_and_edge_links():
     assert names == ["X"]
 
 
-@pytest.mark.parametrize("kind", ["node", "edge", "cluster", "graph", "end"])
+@pytest.mark.parametrize("kind", ["node", "edge", "cluster", "graph"])
 def test_unlink_span_ends_at_each_group_kind(kind):
     x = _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x"')
-    if kind == "end":
-        svg = '<svg><g id="graph0" class="graph">' + x + "</g></svg>"
-        out, names = unlink_anchors(svg)
-        assert out.endswith("</g></svg>")
-    else:
-        z = f'<g id="z" class="{kind}"><a xlink:href="https://e.com/z"><text>z</text></a></g>'
-        svg = "<svg>" + x + z + "</svg>"
-        out, names = unlink_anchors(svg)
-        assert 'xlink:href="https://e.com/z"' in out
+    z = f'<g id="z" class="{kind}"><a xlink:href="https://e.com/z"><text>z</text></a></g>'
+    out, names = unlink_anchors("<svg>" + x + z + "</svg>")
+    assert 'xlink:href="https://e.com/z"' in out
+    assert "e.com/x" not in out
+    assert names == ["X"]
+
+
+def test_unlink_span_of_last_group_ends_at_svg_end():
+    x = _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x"')
+    out, names = unlink_anchors('<svg><g id="graph0" class="graph">' + x + "</g></svg>")
+    assert out.endswith("</g></svg>")
     assert "e.com/x" not in out
     assert names == ["X"]
 

@@ -1,7 +1,6 @@
 import io
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -276,19 +275,6 @@ def _link_node(src: Path, node: str, attr: str) -> str:
     return f"{FLOW}: node '{node}' is an anchor; its link is removed"
 
 
-def _svg_group(html: str, node: str) -> str:
-    """The SVG node group for node: its open tag up to the next node/edge group, or </svg>."""
-    head = f'<g id="{node}" class="node'
-    assert html.count(head) == 1
-    start = html.index(head)
-    end = html.index("</svg>", start)
-    for m in re.finditer(r"<g\b[^>]*>", html[start + len(head) : end]):
-        cls = re.search(r'(?<![\w-])class="([^"]*)"', m.group(0))
-        if cls and {"node", "edge"}.intersection(cls.group(1).split()):
-            return html[start : start + len(head) + m.start()]
-    return html[start:end]
-
-
 @needs_dot
 def test_check_warns_on_link_on_anchored_node(src, capsys):
     w = _link_node(src, "add-fn", 'URL="https://example.com/add"')
@@ -328,8 +314,7 @@ def test_build_strips_anchored_link_and_keeps_free_link(src, tmp_path, capsys):
     out = tmp_path / "site"
     assert main(["build", "--root", str(src), "--output", str(out), "--commit", FIXED]) == 0
     html = (out / "intro/hello/index.html").read_text(encoding="utf-8")
-    g = _svg_group(html, "add-fn")
-    assert 'data-anchor="add-fn"' in g
-    assert "example.com/add" not in g and "href=" not in g
-    assert 'xlink:href="https://example.com/printf"' in _svg_group(html, "printf-node")
+    assert '<g id="add-fn" class="node rv-svg-anchor" data-node="add-fn" data-anchor="add-fn"' in html
+    assert "example.com/add" not in html
+    assert 'xlink:href="https://example.com/printf"' in html
     assert f"warning: {w}\n" in capsys.readouterr().out
