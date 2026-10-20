@@ -104,4 +104,4 @@ def unlink_anchors(svg: str) -> tuple[str, list[str]]:
             out.append(new)
             pos = end
     out.append(svg[pos:])
-    return "".join(out), sorted(names)
+    return "".join(out), sorted(set(names))

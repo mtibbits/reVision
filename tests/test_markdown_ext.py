@@ -433,6 +433,7 @@ def test_readme_states_anchored_node_link_rule():
     b = _readme_bullet('id="anchor-name"')
     assert "removed with a warning" in b
     assert "URL" in b
+    assert "HTML-label `HREF`" in b
 
 
 @pytest.mark.parametrize("key", _QUESTION_KEYS + _QUIZ_KEYS)

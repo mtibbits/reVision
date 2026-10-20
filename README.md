@@ -60,9 +60,9 @@ Piper is unavailable.
   their section of the v1.0 intrinsic reference; a bare `` `name` `` in inline code auto-links
   too, except inside another link's text, where it stays plain inline code; a code span in an
   anchor phrase still links), `![Alt](diagrams/x.dot)` inlines a Graphviz diagram (give a node
-  `id="anchor-name"` to make it hover and click like a phrase; a `URL` or `href` on such a node is
-  removed with a warning, because a click on it pins the anchor), and a fenced block with the
-  language `quiz` adds a page-local knowledge check.
+  `id="anchor-name"` to make it hover and click like a phrase; a `URL`, `href` or HTML-label `HREF`
+  on such a node is removed with a warning, because a click on it pins the anchor), and a fenced
+  block with the language `quiz` adds a page-local knowledge check.
 - In a quiz, a question's `q` and its `choices` accept one kind of markup: a backtick code span,
   which renders as inline code (not linked to vendor documentation). Anything else, raw HTML and
   backslashes included, shows as written, so a backslash does not stop a backtick from opening a

@@ -142,6 +142,19 @@ def test_unlink_reports_node_once_for_several_links():
     assert names == ["X"]
 
 
+def test_unlink_reports_shared_anchor_name_once():
+    # Graphviz does not require unique ids, so two shapes may share one anchor.
+    svg = (
+        "<svg>"
+        + _anchored("x", 'xlink:href="https://e.com/1"')
+        + _anchored("x", 'xlink:href="https://e.com/2"')
+        + "</svg>"
+    )
+    out, names = unlink_anchors(svg)
+    assert "e.com" not in out
+    assert names == ["x"]
+
+
 def test_unlink_names_sorted():
     svg = (
         "<svg>"
