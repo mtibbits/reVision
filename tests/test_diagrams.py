@@ -2,7 +2,7 @@ import shutil
 
 import pytest
 
-from revision_engine.diagrams import graphviz_version, render_dot, stamp_anchors
+from revision_engine.diagrams import graphviz_version, render_dot, stamp_anchors, unlink_anchors
 from revision_engine.errors import BuildError
 
 needs_dot = pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz dot not installed")
@@ -44,3 +44,136 @@ def test_stamp_anchors_marks_matching_nodes():
 def test_graphviz_version_is_string_or_none():
     v = graphviz_version()
     assert v is None or isinstance(v, str)
+
+
+def _anchored(name: str, a_attrs: str) -> str:
+    return (
+        f'<g id="{name}" class="node rv-svg-anchor" data-node="{name}" data-anchor="{name}"><title>x</title>'
+        f'<g id="a_{name}"><a {a_attrs}><polygon/><text>x</text></a></g></g>'
+    )
+
+
+def test_unlink_strips_xlink_href_on_anchored_node():
+    svg = "<svg>" + _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x"') + "</svg>"
+    out, names = unlink_anchors(svg)
+    assert "xlink:href" not in out
+    assert '<a xlink:title="x">' in out and "<text>x</text>" in out
+    assert names == ["X"]
+
+
+def test_unlink_strips_plain_href_on_anchored_node():
+    svg = "<svg>" + _anchored("X", 'href="https://e.com/x" xlink:title="x"') + "</svg>"
+    assert " href=" in svg
+    out, names = unlink_anchors(svg)
+    assert " href=" not in out and "xlink:href" not in out
+    assert '<a xlink:title="x">' in out
+    assert names == ["X"]
+
+
+def test_unlink_strips_target_with_the_link():
+    svg = "<svg>" + _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x" target="_blank"') + "</svg>"
+    out, names = unlink_anchors(svg)
+    assert '<a xlink:title="x">' in out
+    assert "target=" not in out
+    assert names == ["X"]
+
+
+def test_unlink_keeps_tooltip_only_anchor_byte_identical():
+    svg = "<svg>" + _anchored("X", 'xlink:title="tip"') + "</svg>"
+    out, names = unlink_anchors(svg)
+    assert out == svg
+    assert names == []
+
+
+def test_unlink_leaves_non_anchored_and_edge_links():
+    svg = (
+        "<svg>"
+        + _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x"')
+        + '<g id="Y" class="node" data-node="Y"><g id="a_Y"><a xlink:href="https://e.com/y" xlink:title="y">'
+        "<text>y</text></a></g></g>"
+        '<g id="e1" class="edge"><g id="a_e1"><a xlink:href="https://e.com/edge"><path/></a></g></g>'
+        "</svg>"
+    )
+    out, names = unlink_anchors(svg)
+    assert "e.com/x" not in out
+    assert 'xlink:href="https://e.com/y"' in out and 'xlink:href="https://e.com/edge"' in out
+    assert names == ["X"]
+
+
+@pytest.mark.parametrize("kind", ["node", "edge", "cluster", "graph", "end"])
+def test_unlink_span_ends_at_each_group_kind(kind):
+    x = _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x"')
+    if kind == "end":
+        svg = '<svg><g id="graph0" class="graph">' + x + "</g></svg>"
+        out, names = unlink_anchors(svg)
+        assert out.endswith("</g></svg>")
+    else:
+        z = f'<g id="z" class="{kind}"><a xlink:href="https://e.com/z"><text>z</text></a></g>'
+        svg = "<svg>" + x + z + "</svg>"
+        out, names = unlink_anchors(svg)
+        assert 'xlink:href="https://e.com/z"' in out
+    assert "e.com/x" not in out
+    assert names == ["X"]
+
+
+def test_unlink_class_token_not_prefix():
+    svg = (
+        "<svg>"
+        + _anchored("X", 'xlink:href="https://e.com/x" xlink:title="x"')
+        + '<g class="foo node" id="Y"><a xlink:href="https://e.com/y"><text>y</text></a></g>'
+        "</svg>"
+    )
+    out, names = unlink_anchors(svg)
+    assert 'xlink:href="https://e.com/y"' in out
+    assert "e.com/x" not in out
+    assert names == ["X"]
+
+
+def test_unlink_reports_node_once_for_several_links():
+    svg = (
+        '<svg><g id="X" class="node rv-svg-anchor" data-node="X" data-anchor="X">'
+        '<a xlink:href="https://e.com/1"><text>1</text></a><a href="https://e.com/2"><text>2</text></a>'
+        "</g></svg>"
+    )
+    out, names = unlink_anchors(svg)
+    assert "href" not in out
+    assert names == ["X"]
+
+
+def test_unlink_names_sorted():
+    svg = (
+        "<svg>"
+        + _anchored("b", 'xlink:href="https://e.com/b"')
+        + _anchored("a", 'xlink:href="https://e.com/a"')
+        + "</svg>"
+    )
+    out, names = unlink_anchors(svg)
+    assert "e.com" not in out
+    assert names == ["a", "b"]
+
+
+def test_unlink_no_anchors_is_identity():
+    svg = (
+        '<svg><g id="Y" class="node" data-node="Y"><a xlink:href="https://e.com/y"><text>y</text></a></g>'
+        '<g id="Z" class="node" data-node="Z"><a href="https://e.com/z"><text>z</text></a></g></svg>'
+    )
+    out, names = unlink_anchors(svg)
+    assert out == svg
+    assert names == []
+
+
+@needs_dot
+def test_unlink_on_real_graphviz_output(tmp_path):
+    p = tmp_path / "links.dot"
+    p.write_text(
+        'digraph { a [id="a-url", URL="https://e.com/a"]; b [id="b-href", href="https://e.com/b"]; '
+        'c [id="c-tip", tooltip="tip"]; d [id="d-free", URL="https://e.com/d"]; a -> d; }\n',
+        encoding="utf-8",
+    )
+    stamped = stamp_anchors(render_dot(p, "L/diagrams/links.dot"), {"a-url", "b-href", "c-tip"})
+    assert "e.com/a" in stamped and "e.com/b" in stamped and 'data-anchor="a-url"' in stamped
+    out, names = unlink_anchors(stamped)
+    assert names == ["a-url", "b-href"]
+    assert "e.com/a" not in out and "e.com/b" not in out
+    assert 'xlink:title="tip"' in out
+    assert "e.com/d" in out

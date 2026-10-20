@@ -17,6 +17,13 @@ _STRIP_RES = (
 )
 _NODE_RE = re.compile(r'<g id="([^"]+)" class="node"')
 _SVG_OPEN_RE = re.compile(r"<svg\b")
+_G_OPEN_RE = re.compile(r"<g\b[^>]*>")
+_CLASS_RE = re.compile(r'(?<![\w-])class="([^"]*)"')
+_ANCHOR_ATTR_RE = re.compile(r'(?<![\w-])data-anchor="([^"]*)"')
+_A_OPEN_RE = re.compile(r"<a\b[^>]*>")
+_HAS_LINK_RE = re.compile(r'\s(?:xlink:)?href="')
+_LINK_ATTR_RE = re.compile(r'\s(?:xlink:)?href="[^"]*"|\starget="[^"]*"')
+_GROUP_KINDS = {"node", "edge", "cluster", "graph"}
 
 
 def graphviz_version() -> str | None:
@@ -62,3 +69,36 @@ def stamp_anchors(svg: str, anchor_names: set[str]) -> str:
         return m.group(0)
 
     return re.sub(r'<g id="([^"]+)" class="node" data-node="[^"]+"', repl, svg)
+
+
+def unlink_anchors(svg: str) -> tuple[str, list[str]]:
+    """Strip links from anchored nodes: a click on an anchored node pins it, so a link inside is dead.
+
+    Returns the new SVG and the sorted names of the anchored nodes that held a link.
+    """
+    groups = []
+    for m in _G_OPEN_RE.finditer(svg):
+        cls = _CLASS_RE.search(m.group(0))
+        if cls and _GROUP_KINDS.intersection(cls.group(1).split()):
+            groups.append(m)
+
+    def unlink(m: re.Match) -> str:
+        tag = m.group(0)
+        return _LINK_ATTR_RE.sub("", tag) if _HAS_LINK_RE.search(tag) else tag
+
+    out: list[str] = []
+    names: set[str] = set()
+    pos = 0
+    for i, g in enumerate(groups):
+        anchor = _ANCHOR_ATTR_RE.search(g.group(0))
+        if anchor is None:
+            continue
+        end = groups[i + 1].start() if i + 1 < len(groups) else len(svg)
+        span = svg[g.end() : end]
+        if any(_HAS_LINK_RE.search(a.group(0)) for a in _A_OPEN_RE.finditer(span)):
+            names.add(anchor.group(1))
+            out.append(svg[pos : g.end()])
+            out.append(_A_OPEN_RE.sub(unlink, span))
+            pos = end
+    out.append(svg[pos:])
+    return "".join(out), sorted(names)
