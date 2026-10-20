@@ -5,7 +5,7 @@ import yaml
 
 from revision_engine.errors import BuildError, Report
 from revision_engine.intrinsics import lookup
-from revision_engine.markdown_ext import RenderContext, render_markdown
+from revision_engine.markdown_ext import _QUESTION_KEYS, _QUIZ_KEYS, RenderContext, render_markdown
 from tests.ci_pins import ROOT
 
 
@@ -194,8 +194,15 @@ def test_quiz_validation():
         render_markdown(bad, ctx())
 
 
+Q3 = "  - q: Which?\n    choices: [a, b, c]\n    answer: 0\n"
+
+
+def _quiz(body: str) -> str:
+    return "```quiz\n" + body + "```\n"
+
+
 def _quiz_with_shuffle(line: str) -> str:
-    return "```quiz\nquestions:\n  - q: Which?\n    choices: [a, b, c]\n    answer: 0\n" + line + "```\n"
+    return _quiz("questions:\n" + Q3 + line)
 
 
 def test_quiz_shuffle_false_marks_fieldset():
@@ -219,6 +226,99 @@ def test_quiz_shuffle_true_is_the_default():
 def test_quiz_shuffle_must_be_boolean():
     with pytest.raises(BuildError, match=r"L/lesson\.md:1: quiz question 1 shuffle must be true or false"):
         render_markdown(_quiz_with_shuffle("    shuffle: 'false'\n"), ctx())
+
+
+@pytest.mark.parametrize(
+    "line, key",
+    [("    shufle: false\n", "shufle"), ("    Shuffle: false\n", "Shuffle")],
+    ids=["lowercase-typo", "capitalised"],
+)
+def test_quiz_misspelled_shuffle_key_fails(line, key):
+    match = r"L/lesson\.md:1: quiz question 1 has unknown key '" + key + r"' \(accepted: q, choices, answer, shuffle\)$"
+    with pytest.raises(BuildError, match=match):
+        render_markdown(_quiz_with_shuffle(line), ctx())
+
+
+def test_quiz_unknown_key_names_its_question():
+    body = _quiz("questions:\n" + Q3 + "  - q: Two?\n    choices: [a, b, c]\n    answer: 1\n    title: x\n")
+    with pytest.raises(BuildError, match=r"L/lesson\.md:1: quiz question 2 has unknown key 'title' "):
+        render_markdown(body, ctx())
+
+
+def test_quiz_all_unknown_keys_named():
+    with pytest.raises(BuildError, match=r"quiz question 1 has unknown keys 'hint', 'shufle' \("):
+        render_markdown(_quiz_with_shuffle("    hint: h\n    shufle: false\n"), ctx())
+
+
+def test_quiz_non_string_key_is_named():
+    # YAML 1.1 loads `on:` as the boolean key True.
+    with pytest.raises(BuildError, match=r"quiz question 1 has unknown key True \("):
+        render_markdown(_quiz_with_shuffle("    on: x\n"), ctx())
+
+
+def test_quiz_unknown_key_reported_before_missing_q():
+    body = _quiz("questions:\n  - Q: Which?\n    choices: [a, b, c]\n    answer: 0\n")
+    with pytest.raises(BuildError, match=r"quiz question 1 has unknown key 'Q' "):
+        render_markdown(body, ctx())
+
+
+def test_quiz_level_shuffle_says_it_goes_on_each_question():
+    match = r"L/lesson\.md:1: quiz block has unknown key 'shuffle' \(accepted: questions\); 'shuffle' goes on each question$"
+    with pytest.raises(BuildError, match=match):
+        render_markdown(_quiz("shuffle: false\nquestions:\n" + Q3), ctx())
+
+
+def test_quiz_level_unknown_key_fails():
+    # The $ keeps the shuffle hint off every other key's message.
+    with pytest.raises(BuildError, match=r"L/lesson\.md:1: quiz block has unknown key 'title' \(accepted: questions\)$"):
+        render_markdown(_quiz("title: Check\nquestions:\n" + Q3), ctx())
+
+
+def test_quiz_level_shuffle_and_other_key():
+    match = r"quiz block has unknown keys 'title', 'shuffle' \(accepted: questions\); 'shuffle' goes on each question$"
+    with pytest.raises(BuildError, match=match):
+        render_markdown(_quiz("title: Check\nshuffle: false\nquestions:\n" + Q3), ctx())
+
+
+def test_quiz_level_shuffle_remedy_builds():
+    # The refusal's remedy, followed as written: shuffle moved onto the question.
+    c = ctx()
+    out = render_markdown(_quiz_with_shuffle("    shuffle: false\n"), c)
+    assert "data-fixed-order" in out.html
+    assert c.report.warnings == []
+
+
+def _two_choice(line: str) -> str:
+    return "  - q: Is 5 odd?\n    choices: ['odd', 'even']\n    answer: 0\n" + line
+
+
+def test_quiz_two_choice_shuffle_true_warns():
+    c = ctx()
+    render_markdown(_quiz("questions:\n" + Q3 + _two_choice("    shuffle: true\n")), c)
+    assert c.report.warnings == [
+        "L/lesson.md:1: quiz question 2 has two choices, which always keep their order; shuffle: true has no effect"
+    ]
+
+
+@pytest.mark.parametrize("line", ["    shuffle: false\n", ""], ids=["false", "absent"])
+def test_quiz_two_choice_no_warning(line):
+    c = ctx()
+    out = render_markdown(_quiz("questions:\n" + _two_choice(line)), c)
+    assert '<fieldset class="rv-q"' in out.html
+    assert c.report.warnings == []
+
+
+def test_quiz_three_choice_shuffle_true_no_warning():
+    c = ctx()
+    render_markdown(_quiz_with_shuffle("    shuffle: true\n"), c)
+    assert c.report.warnings == []
+
+
+def test_quiz_two_choice_threshold_matches_app_js():
+    text = (ROOT / "revision_engine/static/app.js").read_text(encoding="utf-8")
+    assert text.count("labels.length < 3") == 1, (
+        "_quiz_html's two-choice shuffle warning mirrors app.js's `labels.length < 3`; change them together"
+    )
 
 
 QUIZ_YAML_ERROR = "quiz block is not valid YAML"
@@ -315,6 +415,24 @@ def test_readme_documents_quiz_shuffle():
     assert m
     out = render_markdown(_quiz_with_shuffle("    " + m.group(1) + "\n"), ctx())
     assert "data-fixed-order" in out.html
+
+
+def _readme_bullet(phrase: str) -> str:
+    # The one lesson-section bullet containing phrase (case-insensitive).
+    matches = [b for b in _readme_lesson_section().split(" - ") if phrase.lower() in b.lower()]
+    assert len(matches) == 1, f"expected one README bullet containing {phrase!r}, found {len(matches)}"
+    return matches[0]
+
+
+@pytest.mark.parametrize("key", _QUESTION_KEYS + _QUIZ_KEYS)
+def test_readme_names_quiz_key(key):
+    assert f"`{key}`" in _readme_bullet("any other key fails the build")
+
+
+def test_readme_documents_two_choice_shuffle_warning():
+    bullet = _readme_bullet("`shuffle: false`")
+    assert "`shuffle: true`" in bullet
+    assert "warning" in bullet
 
 
 def test_quiz_single_quoted_doubled_apostrophe():

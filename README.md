@@ -70,11 +70,14 @@ Piper is unavailable.
   build fails with "quiz block is not valid YAML". Use single quotes, not double: inside double
   quotes YAML reads a backslash as an escape, so `` `\n` `` would lose its backslash. Inside single
   quotes, write an apostrophe twice (`''`).
+- A quiz block's only top-level key is `questions`. A question accepts `q`, `choices`, `answer`
+  (the index of the right choice, counting from 0) and `shuffle`; any other key fails the build
+  and is named in the error, so a misspelled `shufle: false` cannot leave a question shuffled.
 - Each time the page loads, a question's choices appear in a random order, so the right answer is
   not always in the same place; grading follows the choice, not its position. Add `shuffle: false`
   to a question to keep its choices in the order written, for example numeric ranges or "all of
-  the above". A question with two choices (True/False) always keeps its order. With JavaScript
-  off, choices appear in the order written.
+  the above". A question with two choices (True/False) always keeps its order, so `shuffle: true`
+  on one is a build warning. With JavaScript off, choices appear in the order written.
 - `narration.yaml` is a list of segments: `text` plus what to `show`, and optionally a `diagram`
   and `node` to bring into view. Timings are derived by `rv2 narrate`, never typed. If the words
   change and `narrate` is not rerun, `build` fails with the diff.
