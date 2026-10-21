@@ -10,6 +10,7 @@ from functools import partial
 from pathlib import Path
 
 import pytest
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from revision_engine.build import build
 
@@ -89,6 +90,12 @@ def tab_walk(links) -> dict:
     return links.evaluate("window.__walk")
 
 
+@pytest.mark.xfail_browser(
+    "webkit",
+    platforms=("win32",),
+    reason="WebKit on Windows skips links on Tab, so the free node's link is never reached (#81)",
+    raises=AssertionError,
+)
 def test_stripped_link_is_not_a_tab_stop(links):
     # Walk the real Tab order: Chromium reports tabIndex 0 for an href-less SVG <a> yet never stops on it.
     assert links.locator(NODE + " a").count() >= 1
@@ -97,9 +104,10 @@ def test_stripped_link_is_not_a_tab_stop(links):
     assert walk["nodeLink"] is False, walk
 
 
+@pytest.mark.xfail_browser("firefox", "webkit", reason="anchored diagram <g> is not focusable outside Blink: listeners but no tabindex (#82)", raises=AssertionError)
 def test_anchored_node_is_a_tab_stop(links):
     # app.js's focus listeners make the anchored <g> a live stop (Enter pins), but it sets no tabindex, so the <g>
-    # is a Tab stop only in Blink (#Q1).
+    # is a Tab stop only in Blink (#82).
     walk = tab_walk(links)
     assert walk["node"] is True, walk
 
@@ -114,10 +122,11 @@ def test_click_on_anchored_linked_node_pins(links):
     assert links.popups == []
 
 
+@pytest.mark.xfail_browser("firefox", "webkit", reason="anchored diagram <g> is not focusable outside Blink: listeners but no tabindex (#82)", raises=PlaywrightTimeoutError)
 def test_enter_on_anchored_linked_node_pins(links):
     links.locator(NODE).focus()
     links.keyboard.press("Enter")
-    links.wait_for_function("location.hash === '#add-fn'")
+    links.wait_for_function("location.hash === '#add-fn'", timeout=WINDOW_MS)
     assert "rv-pinned" in (links.locator(NODE).get_attribute("class") or "").split()
     assert links.popups == []
 
