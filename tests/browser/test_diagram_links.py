@@ -96,8 +96,10 @@ def test_stripped_link_is_not_a_tab_stop(links):
     assert links.evaluate("window.__nodeLink") is False
 
 
+# Click the node, not its <text>: WebKit reports the box of SVG <text> in these nodes far from where it is drawn
+# (on the caption), so Playwright's click point misses; the <g>'s box is right and its centre hits the <text>.
 def test_click_on_anchored_linked_node_pins(links):
-    links.click(NODE + " text")
+    links.click(NODE)
     links.wait_for_timeout(WINDOW_MS)
     assert links.evaluate("location.hash") == "#add-fn"
     assert "rv-pinned" in (links.locator(NODE).get_attribute("class") or "").split()
@@ -113,5 +115,5 @@ def test_enter_on_anchored_linked_node_pins(links):
 
 
 def test_free_node_link_still_navigates(links):
-    links.click(FREE + " text")
+    links.click(FREE)
     links.wait_for_url("https://example.com/printf", timeout=WINDOW_MS)
