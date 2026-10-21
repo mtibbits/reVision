@@ -11,7 +11,19 @@ import pytest
 from revision_engine.build import build
 from revision_engine.serve import RangeHTTPRequestHandler
 
+from .marks import apply_browser_marks
+
 FIXED = "0123456789abcdef0123456789abcdef01234567"
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "xfail_browser(*names, reason, raises=None): strict xfail in the named browsers only"
+    )
+
+
+def pytest_collection_modifyitems(items):
+    apply_browser_marks(items)
 
 
 class _QuietHandler(RangeHTTPRequestHandler):
