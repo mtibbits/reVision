@@ -18,7 +18,7 @@ FIXED = "0123456789abcdef0123456789abcdef01234567"
 
 def pytest_configure(config):
     config.addinivalue_line(
-        "markers", "xfail_browser(*names, reason, raises=None): strict xfail in the named browsers only"
+        "markers", "xfail_browser(*names, reason, raises=None, platforms=None): strict xfail in the named browsers only"
     )
 
 

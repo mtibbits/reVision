@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,30 @@ def test_marks_only_the_named_browser():
     assert browser_xfail(("webkit",), "x (#9)", "chromium", raises=AssertionError) is None
 
 
+def test_platforms_narrow_the_mark_to_those_platforms():
+    def mark(platform):
+        return browser_xfail(("webkit",), "x (#9)", "webkit", platforms=("win32",), platform=platform)
+
+    assert mark("win32") is not None
+    assert mark("linux") is None
+    assert mark("darwin") is None
+    assert browser_xfail(("webkit",), "x (#9)", "firefox", platforms=("win32",), platform="win32") is None
+
+
+@pytest.mark.parametrize(
+    ("platforms", "msg"),
+    [
+        (("windows",), "unknown platform 'windows'; expected one of darwin, linux, win32"),
+        ((), "platforms names no platform"),
+        ("win32", "platforms must be a tuple of platform names"),
+    ],
+)
+def test_platform_refusals(platforms, msg):
+    with pytest.raises(ValueError) as e:
+        browser_xfail(("webkit",), "x (#9)", "chromium", platforms=platforms)
+    assert str(e.value) == msg
+
+
 @pytest.mark.parametrize(
     ("names", "reason", "msg"),
     [
@@ -64,6 +89,24 @@ def test_hook_marks_only_that_browser_leg(pytester):
     # pytest-playwright parametrizes browser_name from --browser; requesting it launches no browser.
     result = pytester.runpytest_subprocess("-rxX", "--browser", "chromium", "--browser", "webkit")
     result.assert_outcomes(passed=1, xfailed=1)
+
+
+@pytest.mark.parametrize(("here", "xfailed"), [(True, 1), (False, 0)])
+def test_hook_marks_only_on_the_named_platforms(pytester, here, xfailed):
+    other = "linux" if sys.platform != "linux" else "win32"
+    platform = sys.platform if here else other
+    pytester.makeconftest(CONFTEST)
+    pytester.makepyfile(
+        f"""
+        import pytest
+
+        @pytest.mark.xfail_browser("webkit", platforms=({platform!r},), reason="r (#9)")
+        def test_x(browser_name):
+            assert browser_name == "chromium" or not {here!r}
+        """
+    )
+    result = pytester.runpytest_subprocess("-rxX", "--browser", "chromium", "--browser", "webkit")
+    result.assert_outcomes(passed=2 - xfailed, xfailed=xfailed)
 
 
 @pytest.mark.parametrize(

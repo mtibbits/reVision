@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import re
+import sys
 
 import pytest
 
 ENGINES = ("chromium", "firefox", "webkit")
+PLATFORMS = ("darwin", "linux", "win32")  # sys.platform values
 ISSUE = re.compile(r"#\d+")
 
 
-def browser_xfail(names, reason, browser, raises=None):
-    """The strict xfail mark for browser when names include it, else None; a malformed mark raises ValueError.
+def browser_xfail(names, reason, browser, raises=None, platforms=None, platform=sys.platform):
+    """The strict xfail mark for browser when names include it (and platforms, if given, include platform), else
+    None; a malformed mark raises ValueError.
 
     Validation comes first, so a bad mark is refused in every leg, not only the named ones."""
     if not isinstance(reason, str):
@@ -25,7 +28,15 @@ def browser_xfail(names, reason, browser, raises=None):
         raise ValueError("marks every engine; fix or skip the test instead")
     if not ISSUE.search(reason):
         raise ValueError("reason must name its tracking issue as #N")
-    if browser not in names:
+    if platforms is not None:
+        if not isinstance(platforms, tuple):
+            raise ValueError("platforms must be a tuple of platform names")
+        for name in platforms:
+            if name not in PLATFORMS:
+                raise ValueError(f"unknown platform {name!r}; expected one of {', '.join(PLATFORMS)}")
+        if not platforms:
+            raise ValueError("platforms names no platform")
+    if browser not in names or (platforms is not None and platform not in platforms):
         return None
     kwargs = {"strict": True, "reason": reason}
     if raises is not None:
@@ -41,7 +52,13 @@ def apply_browser_marks(items) -> None:
             try:
                 if callspec is None or "browser_name" not in callspec.params:
                     raise ValueError("the test takes no browser")
-                mark = browser_xfail(m.args, m.kwargs.get("reason"), callspec.params["browser_name"], m.kwargs.get("raises"))
+                mark = browser_xfail(
+                    m.args,
+                    m.kwargs.get("reason"),
+                    callspec.params["browser_name"],
+                    raises=m.kwargs.get("raises"),
+                    platforms=m.kwargs.get("platforms"),
+                )
             except ValueError as e:
                 raise pytest.UsageError(f"xfail_browser on {item.nodeid}: {e}") from None
             if mark is not None:
