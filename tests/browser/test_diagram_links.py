@@ -70,20 +70,15 @@ def test_fixture_anchored_node_has_no_link_and_free_node_keeps_one(links):
     assert links.errors == []
 
 
-def test_stripped_link_is_not_a_tab_stop(links):
-    # Walk the real Tab order: Chromium reports tabIndex 0 for an href-less SVG <a> yet never stops on it.
-    # The anchored <g> itself is a live stop (app.js's focus listeners make it focusable; Enter pins), so
-    # only an <a> inside the node would be the dead stop.
-    assert links.locator(NODE + " a").count() >= 1
+def tab_walk(links) -> dict:
+    """Tab through the page and report which of the free node's link, the anchored node, and its link took focus."""
     links.evaluate(
         """([node, free]) => {
-            window.__nodeLink = false;
-            window.__node = false;
-            window.__free = false;
+            window.__walk = { free: false, node: false, nodeLink: false };
             document.addEventListener('focusin', (e) => {
-                if (e.target.matches(node)) window.__node = true;
-                if (e.target.closest(node + ' a')) window.__nodeLink = true;
-                if (e.target.closest(free + ' a')) window.__free = true;
+                if (e.target.matches(node)) window.__walk.node = true;
+                if (e.target.closest(node + ' a')) window.__walk.nodeLink = true;
+                if (e.target.closest(free + ' a')) window.__walk.free = true;
             });
             if (document.activeElement) document.activeElement.blur();
         }""",
@@ -91,9 +86,22 @@ def test_stripped_link_is_not_a_tab_stop(links):
     )
     for _ in range(200):
         links.keyboard.press("Tab")
-    assert links.evaluate("window.__free") is True
-    assert links.evaluate("window.__node") is True
-    assert links.evaluate("window.__nodeLink") is False
+    return links.evaluate("window.__walk")
+
+
+def test_stripped_link_is_not_a_tab_stop(links):
+    # Walk the real Tab order: Chromium reports tabIndex 0 for an href-less SVG <a> yet never stops on it.
+    assert links.locator(NODE + " a").count() >= 1
+    walk = tab_walk(links)
+    assert walk["free"] is True, walk  # the walk reached a diagram link at all
+    assert walk["nodeLink"] is False, walk
+
+
+def test_anchored_node_is_a_tab_stop(links):
+    # app.js's focus listeners make the anchored <g> a live stop (Enter pins), but it sets no tabindex, so the <g>
+    # is a Tab stop only in Blink (#Q1).
+    walk = tab_walk(links)
+    assert walk["node"] is True, walk
 
 
 # Click the node, not its <text>: WebKit reports the box of SVG <text> in these nodes far from where it is drawn
