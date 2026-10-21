@@ -109,6 +109,22 @@ def test_hook_marks_only_on_the_named_platforms(pytester, here, xfailed):
     result.assert_outcomes(passed=2 - xfailed, xfailed=xfailed)
 
 
+def test_webkit_wsl_channel_counts_as_linux(pytester):
+    # Playwright's webkit-wsl channel runs the Linux WebKit build from a Windows host.
+    pytester.makeconftest(CONFTEST)
+    pytester.makepyfile(
+        """
+        import pytest
+
+        @pytest.mark.xfail_browser("webkit", platforms=("linux",), reason="r (#9)")
+        def test_x(browser_name):
+            assert False
+        """
+    )
+    result = pytester.runpytest_subprocess("-rxX", "--browser", "webkit", "--browser-channel", "webkit-wsl")
+    result.assert_outcomes(xfailed=1)
+
+
 @pytest.mark.parametrize(
     ("mark", "args", "msg"),
     [

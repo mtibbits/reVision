@@ -44,6 +44,13 @@ def browser_xfail(names, reason, browser, raises=None, platforms=None, platform=
     return pytest.mark.xfail(**kwargs)
 
 
+def engine_platform(config) -> str:
+    """The platform the browser engine runs on: Playwright's webkit-wsl channel runs Linux WebKit from Windows."""
+    if config.getoption("--browser-channel", default=None) == "webkit-wsl":
+        return "linux"
+    return sys.platform
+
+
 def apply_browser_marks(items) -> None:
     """Turn each item's xfail_browser marker into a strict xfail for its own browser leg; refuse malformed marks."""
     for item in items:
@@ -58,6 +65,7 @@ def apply_browser_marks(items) -> None:
                     callspec.params["browser_name"],
                     raises=m.kwargs.get("raises"),
                     platforms=m.kwargs.get("platforms"),
+                    platform=engine_platform(item.config),
                 )
             except ValueError as e:
                 raise pytest.UsageError(f"xfail_browser on {item.nodeid}: {e}") from None
