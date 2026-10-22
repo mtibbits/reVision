@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from tests.browser.marks import browser_xfail
+from tests.browser.marks import browser_xfail, engine_platform
 from tests.ci_pins import ROOT
 
 pytest_plugins = ["pytester"]
@@ -61,6 +61,35 @@ def test_refusals(names, reason, msg):
     with pytest.raises(ValueError) as e:
         browser_xfail(names, reason, "chromium")
     assert str(e.value) == msg
+
+
+@pytest.mark.parametrize("raises", ["AssertionError", int, (AssertionError, "x")])
+def test_raises_refusals(raises):
+    with pytest.raises(ValueError) as e:
+        browser_xfail(("webkit",), "x (#9)", "chromium", raises=raises)
+    assert str(e.value) == "raises must be an exception type or a tuple of them"
+
+
+def test_raises_accepts_a_tuple_of_exceptions():
+    mark = browser_xfail(("webkit",), "x (#9)", "webkit", raises=(AssertionError, TimeoutError))
+    assert mark.mark.kwargs["raises"] == (AssertionError, TimeoutError)
+
+
+def test_engine_platform_counts_webkit_wsl_as_linux(monkeypatch):
+    # Pretend to be Windows, so the channel rule bites on a Linux host too.
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    class Config:
+        def __init__(self, channel):
+            self.channel = channel
+
+        def getoption(self, name, default=None):
+            assert name == "--browser-channel"
+            return self.channel
+
+    assert engine_platform(Config("webkit-wsl")) == "linux"
+    assert engine_platform(Config(None)) == "win32"
+    assert engine_platform(Config("msedge")) == "win32"
 
 
 def test_hook_marks_only_that_browser_leg(pytester):

@@ -30,6 +30,10 @@ def browser_xfail(names, reason, browser, raises=None, platforms=None, platform=
         raise ValueError("marks every engine; fix or skip the test instead")
     if not ISSUE.search(reason):
         raise ValueError("reason must name its tracking issue as #N")
+    if raises is not None and not all(
+        isinstance(r, type) and issubclass(r, BaseException) for r in (raises if isinstance(raises, tuple) else (raises,))
+    ):
+        raise ValueError("raises must be an exception type or a tuple of them")
     if platforms is not None:
         if not isinstance(platforms, tuple):
             raise ValueError("platforms must be a tuple of platform names")
