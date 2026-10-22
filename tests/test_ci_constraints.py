@@ -125,10 +125,12 @@ def test_browser_tests_run_in_every_engine():
                         engines.add(tokens[i + 1])
     assert engines == {"chromium", "firefox", "webkit"}
     # The golden gate stays on the required `test` job, which stays one un-matrixed check.
-    browsers = jobs.get("browsers", {})
-    for env in [workflow.get("env"), browsers.get("env"), *(s.get("env") for s in browsers.get("steps", []))]:
-        assert "RV_REQUIRE_GOLDEN" not in (env or {})
+    assert jobs["test"]["env"]["RV_REQUIRE_GOLDEN"] == "1"
     assert "strategy" not in jobs["test"]
+    others = [job for name, job in jobs.items() if name != "test"]
+    envs = [workflow.get("env")] + [e for job in others for e in [job.get("env"), *(s.get("env") for s in job["steps"])]]
+    for env in envs:
+        assert "RV_REQUIRE_GOLDEN" not in (env or {})
 
 
 def test_install_command_is_documented_verbatim():

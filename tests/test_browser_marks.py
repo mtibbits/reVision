@@ -9,8 +9,6 @@ import pytest
 from tests.browser.marks import browser_xfail, engine_platform
 from tests.ci_pins import ROOT
 
-pytest_plugins = ["pytester"]
-
 CONFTEST = f'import sys\nsys.path.insert(0, {str(ROOT)!r})\npytest_plugins = ["tests.browser.marks"]\n'
 
 
