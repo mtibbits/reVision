@@ -11,19 +11,9 @@ import pytest
 from revision_engine.build import build
 from revision_engine.serve import RangeHTTPRequestHandler
 
-from .marks import apply_browser_marks
+from .marks import pytest_collection_modifyitems, pytest_configure  # noqa: F401 - the xfail_browser hooks
 
 FIXED = "0123456789abcdef0123456789abcdef01234567"
-
-
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "xfail_browser(*names, reason, raises=None, platforms=None): strict xfail in the named browsers only"
-    )
-
-
-def pytest_collection_modifyitems(items):
-    apply_browser_marks(items)
 
 
 class _QuietHandler(RangeHTTPRequestHandler):
@@ -34,13 +24,19 @@ class _QuietHandler(RangeHTTPRequestHandler):
 
 
 @pytest.fixture(scope="session")
-def site_url(tmp_path_factory):
+def site_out(tmp_path_factory):
+    """The minimal example, built once per session; serve it, never change it."""
     root = tmp_path_factory.mktemp("site")
     src = root / "m"
     shutil.copytree(Path(__file__).resolve().parents[2] / "examples" / "minimal", src)
     out = root / "out"
     build(src, output=out, commit=FIXED)
-    handler = partial(_QuietHandler, directory=str(out))
+    return out
+
+
+@pytest.fixture(scope="session")
+def site_url(site_out):
+    handler = partial(_QuietHandler, directory=str(site_out))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

@@ -115,21 +115,19 @@ def test_browser_tests_run_in_every_engine():
     engines: set[str] = set()
     for job in jobs.values():
         for step in job["steps"]:
-            run = step.get("run", "")
-            for tokens in _commands(run):
+            for tokens in _commands(step.get("run", "")):
                 for flag, engine in zip(tokens, tokens[1:]):
                     if flag != "--browser":
                         continue
-                    if not engine.startswith("${{"):
-                        engines.add(engine)
-                    elif "--browser ${{ matrix.browser }}" in run:
+                    if engine.startswith("${{"):
                         engines.update(job["strategy"]["matrix"]["browser"])
+                    else:
+                        engines.add(engine)
     assert engines == {"chromium", "firefox", "webkit"}
     # The golden gate stays on the required `test` job, which stays one un-matrixed check.
     browsers = jobs.get("browsers", {})
     for env in [workflow.get("env"), browsers.get("env"), *(s.get("env") for s in browsers.get("steps", []))]:
         assert "RV_REQUIRE_GOLDEN" not in (env or {})
-    assert "test" in jobs
     assert "strategy" not in jobs["test"]
 
 

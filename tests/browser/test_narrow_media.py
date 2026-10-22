@@ -69,10 +69,9 @@ def test_narrow_media_pane_leaves_lesson_room(hello, height):
 
 def test_audio_cap_leaves_first_cue_room(hello):
     """Pins the audio cap Firefox needs (#45): Firefox sizes the player's grid row from its declared max-height,
-    not its controls, so this reads that declared value and pins Firefox's budget from Chromium; since #64 CI also runs it
-    in Firefox directly. A red at the budget assert is a
-    Firefox overflow; a red at the >= 54 assert is Chromium's controls squeezed. It does not see a height/min-height
-    on audio, a narrow @media rule that changes the pane, or a Firefox intrinsic-size change (the test above does)."""
+    not its controls, so this reads that declared value and pins Firefox's budget from Chromium; since #64 CI also
+    runs it in Firefox directly. A red at the budget assert is a Firefox overflow; a red at the >= 54 assert is
+    Chromium's controls squeezed. It does not see a height/min-height on audio, a narrow @media rule that changes the pane, or a Firefox intrinsic-size change (the test above does)."""
     hello.set_viewport_size({"width": 700, "height": 500})
     hello.wait_for_function(MEDIA_READY)
     v = hello.evaluate(

@@ -23,10 +23,9 @@ APP = re.compile(r".*/assets/app\.[0-9a-f]+\.js$")
 
 
 class MediaGate:
-    """What the test server does with media and app.js: fail the media, and hold either until released."""
+    """Holds the test server's media (which it always fails) or app.js until released."""
 
     def __init__(self) -> None:
-        self.fail = False
         self.media = threading.Event()
         self.app = threading.Event()
         self.release()
@@ -35,10 +34,6 @@ class MediaGate:
         self.media.set()
         self.app.set()
 
-    def reset(self) -> None:
-        self.fail = False
-        self.release()
-
 
 class _GatedHandler(_QuietHandler):
     def __init__(self, *args, gate: MediaGate, **kwargs):
@@ -46,9 +41,9 @@ class _GatedHandler(_QuietHandler):
         super().__init__(*args, **kwargs)
 
     def send_head(self):
-        if WAV.match(self.path) and self.gate.fail:
+        if WAV.match(self.path):
             self.gate.media.wait(30)
-            self.send_error(404)  # admitted as failing, so it fails whatever the gate says now
+            self.send_error(404)
             return None
         if APP.match(self.path):
             self.gate.app.wait(30)
@@ -65,7 +60,7 @@ def _serve_gated(out: Path):
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), partial(_GatedHandler, gate=gate, directory=str(out)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield GatedSite(f"http://127.0.0.1:{server.server_address[1]}/intro/hello/", gate)
-    gate.reset()
+    gate.release()
     server.shutdown()
 
 
@@ -87,34 +82,26 @@ def long_media(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def short_media(tmp_path_factory):
-    root = tmp_path_factory.mktemp("short-media")
-    src = root / "m"
-    shutil.copytree(Path(__file__).resolve().parents[2] / "examples" / "minimal", src)
-    out = root / "out"
-    build(src, output=out, commit=FIXED)
-    yield from _serve_gated(out)
+def short_media(site_out):
+    yield from _serve_gated(site_out)
 
 
 def fail_media(page, site: GatedSite, order: str) -> list[str]:
     """Load site with its media failing before ("early") or after ("late") the deferred app.js runs.
 
     The server fails the media, not page.route: WebKit's media requests never reach Playwright, so a route
-    neither sees nor fails them. The media stays failing after this returns."""
+    neither sees nor fails them."""
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     gate = site.gate
     try:
-        gate.fail = True
         if order == "late":
             gate.media.clear()
-            gate.app.set()
             page.goto(site.url, wait_until="domcontentloaded")  # a held media request delays "load"
             page.wait_for_function("window.RV !== undefined")
             assert page.evaluate("document.getElementById('rv-media-el').error === null")
             gate.media.set()
         else:
-            gate.media.set()
             gate.app.clear()
             page.goto(site.url, wait_until="commit")
             page.wait_for_function(

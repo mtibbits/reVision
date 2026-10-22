@@ -1,4 +1,6 @@
-"""xfail_browser: a strict xfail in the named browsers only, naming the issue that tracks the failure."""
+"""xfail_browser: a strict xfail in the named browsers only, naming the issue that tracks the failure.
+
+A pytest plugin: tests/browser/conftest.py re-exports its hooks."""
 
 from __future__ import annotations
 
@@ -71,3 +73,13 @@ def apply_browser_marks(items) -> None:
                 raise pytest.UsageError(f"xfail_browser on {item.nodeid}: {e}") from None
             if mark is not None:
                 item.add_marker(mark)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "xfail_browser(*names, reason, raises=None, platforms=None): strict xfail in the named browsers only"
+    )
+
+
+def pytest_collection_modifyitems(items):
+    apply_browser_marks(items)

@@ -3,27 +3,15 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import pytest
 
 from tests.browser.marks import browser_xfail
+from tests.ci_pins import ROOT
 
 pytest_plugins = ["pytester"]
 
-ROOT = Path(__file__).resolve().parents[1]
-
-CONFTEST = f"""
-import sys
-sys.path.insert(0, {str(ROOT)!r})
-from tests.browser.marks import apply_browser_marks
-
-def pytest_configure(config):
-    config.addinivalue_line("markers", "xfail_browser(*names, reason, raises=None): strict xfail")
-
-def pytest_collection_modifyitems(items):
-    apply_browser_marks(items)
-"""
+CONFTEST = f'import sys\nsys.path.insert(0, {str(ROOT)!r})\npytest_plugins = ["tests.browser.marks"]\n'
 
 
 def test_marks_only_the_named_browser():

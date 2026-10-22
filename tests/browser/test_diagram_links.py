@@ -10,7 +10,6 @@ from functools import partial
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from revision_engine.build import build
 
@@ -21,6 +20,12 @@ EDITS = {"add-fn": 'URL="https://example.com/add"', "printf-node": 'href="https:
 NODE = '.rv-svg g[data-anchor="add-fn"]'
 FREE = '.rv-svg g[data-node="printf-node"]'
 WINDOW_MS = 3000
+# app.js's focus listeners make the anchored <g> a live stop (Enter pins), but it sets no tabindex, so the <g>
+# takes focus only in Blink (#82).
+G_UNFOCUSABLE = pytest.mark.xfail_browser(
+    "firefox", "webkit", reason="anchored diagram <g> is not focusable outside Blink: listeners but no tabindex (#82)",
+    raises=AssertionError,
+)
 LINKED = (
     "els => els.filter(a => a.hasAttribute('href')"
     " || a.hasAttributeNS('http://www.w3.org/1999/xlink', 'href')).length"
@@ -104,10 +109,8 @@ def test_stripped_link_is_not_a_tab_stop(links):
     assert walk["nodeLink"] is False, walk
 
 
-@pytest.mark.xfail_browser("firefox", "webkit", reason="anchored diagram <g> is not focusable outside Blink: listeners but no tabindex (#82)", raises=AssertionError)
+@G_UNFOCUSABLE
 def test_anchored_node_is_a_tab_stop(links):
-    # app.js's focus listeners make the anchored <g> a live stop (Enter pins), but it sets no tabindex, so the <g>
-    # is a Tab stop only in Blink (#82).
     walk = tab_walk(links)
     assert walk["node"] is True, walk
 
@@ -122,9 +125,10 @@ def test_click_on_anchored_linked_node_pins(links):
     assert links.popups == []
 
 
-@pytest.mark.xfail_browser("firefox", "webkit", reason="anchored diagram <g> is not focusable outside Blink: listeners but no tabindex (#82)", raises=PlaywrightTimeoutError)
+@G_UNFOCUSABLE
 def test_enter_on_anchored_linked_node_pins(links):
     links.locator(NODE).focus()
+    assert links.locator(NODE).evaluate("g => g === document.activeElement")
     links.keyboard.press("Enter")
     links.wait_for_function("location.hash === '#add-fn'", timeout=WINDOW_MS)
     assert "rv-pinned" in (links.locator(NODE).get_attribute("class") or "").split()
