@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
+import yaml
 
 from tools.release import (
     INSTALL_BLOCK,
@@ -287,3 +289,85 @@ def test_cli_decide_resolves_a_short_after_sha(git_repo, tmp_path):
     _git("tag", "-a", "v9.8.8", "-m", "v9.8.8", b)
     assert main(["decide", "--before", a[:7], "--after", b[:7]]) == 0
     assert _out(tmp_path) == "version=9.8.8\ntag=false\nrelease=true\n"
+
+
+WORKFLOW = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "test.yml"
+
+
+def _workflow() -> dict:
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+
+def _needs(job: dict) -> list[str]:
+    needs = job.get("needs", [])
+    return [needs] if isinstance(needs, str) else list(needs)
+
+
+def _needs_closure(jobs: dict, name: str) -> set[str]:
+    """Every job that `name` waits on, directly or through another job."""
+    seen: set[str] = set()
+    todo = _needs(jobs[name])
+    while todo:
+        n = todo.pop()
+        if n not in seen:
+            seen.add(n)
+            todo.extend(_needs(jobs[n]))
+    return seen
+
+
+def _upstream(jobs: dict) -> set[str]:
+    """The jobs that release must wait on: all but those that themselves wait on release."""
+    return {n for n in jobs if n != "release" and "release" not in _needs_closure(jobs, n)}
+
+
+def _release_runs() -> list[str]:
+    return [step["run"] for step in _workflow()["jobs"]["release"]["steps"] if "run" in step]
+
+
+def test_release_job_runs_only_for_pushes_to_main_here():
+    condition = _workflow()["jobs"]["release"]["if"]
+    assert "github.event_name == 'push'" in condition
+    assert "github.ref == 'refs/heads/main'" in condition
+    assert "github.repository == 'mtibbits/reVision'" in condition
+    assert condition.count(" && ") == 2
+    assert "||" not in condition
+
+
+def test_release_job_needs_every_other_job():
+    jobs = _workflow()["jobs"]
+    assert set(_needs(jobs["release"])) == _upstream(jobs)
+
+
+def test_needs_rule_allows_a_downstream_job():
+    jobs = dict(_workflow()["jobs"], publish={"needs": "release", "steps": []})
+    assert _upstream(jobs) == {"test", "browsers"}
+
+
+def test_only_release_job_can_write():
+    workflow = _workflow()
+    assert workflow["permissions"] == {"contents": "read"}
+    jobs = workflow["jobs"]
+    assert jobs["release"]["permissions"] == {"contents": "write", "pull-requests": "read"}
+    assert [n for n in jobs if n != "release" and "permissions" in jobs[n]] == []
+
+
+def test_release_job_interpolates_nothing_into_shell():
+    runs = _release_runs()
+    assert runs
+    assert [run for run in runs if "${{" in run] == []
+
+
+def test_release_job_fetches_full_history():
+    steps = _workflow()["jobs"]["release"]["steps"]
+    checkout = next(s for s in steps if s.get("uses", "").startswith("actions/checkout@"))
+    assert checkout["with"]["fetch-depth"] == 0
+
+
+def test_release_job_tag_message_and_title():
+    runs = _release_runs()
+    tag = next(run for run in runs if "git" in run and " tag -a " in run)
+    create = next(run for run in runs if "gh release create" in run)
+    assert '-m "reVision engine v$VERSION"' in tag
+    assert '--title "reVision engine v$VERSION"' in create
+    assert "--verify-tag" in create
+    assert [run for run in runs if "--force" in run or " -f " in run] == []
