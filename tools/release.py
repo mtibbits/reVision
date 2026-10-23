@@ -184,7 +184,13 @@ def _version_at(sha: str) -> str | None:
 
 def _commit(sha: str) -> str:
     """The full SHA, so it compares equal to the commits that tags point at."""
-    return _git("rev-parse", "--verify", f"{sha}^{{commit}}").stdout.strip()
+    resolved = _git("rev-parse", "--verify", f"{sha}^{{commit}}")
+    if resolved.returncode != 0:
+        raise ReleaseError(
+            f"cannot resolve {sha} to a commit: {resolved.stderr.strip()}; tag and release by "
+            "hand: RELEASING.md steps 4-5."
+        )
+    return resolved.stdout.strip()
 
 
 def _tags() -> dict[str, str]:

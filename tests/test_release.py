@@ -240,6 +240,24 @@ def test_cli_decide_bump_writes_outputs(git_repo, tmp_path):
     assert _out(tmp_path) == "version=9.8.8\ntag=true\nrelease=true\n"
 
 
+def test_cli_decide_unchanged_emits_nothing(git_repo, tmp_path):
+    _, b = git_repo
+    (tmp_path / "repo" / "other.txt").write_text("x\n", encoding="utf-8")
+    _git("add", "other.txt")
+    _git("commit", "-q", "-m", "C")
+    c = _git("rev-parse", "HEAD")
+    assert main(["decide", "--before", b, "--after", c]) == 0
+    assert _out(tmp_path) == "version=\ntag=false\nrelease=false\n"
+
+
+def test_cli_decide_after_not_a_commit_fails_loudly(git_repo, tmp_path, capsys):
+    a, b = git_repo
+    tree = _git("rev-parse", f"{b}^{{tree}}")
+    assert main(["decide", "--before", a, "--after", tree]) == 1
+    assert capsys.readouterr().err.startswith(f"::error::cannot resolve {tree} to a commit")
+    assert not (tmp_path / "out").exists()
+
+
 def test_cli_decide_peels_annotated_tags(git_repo, tmp_path):
     a, b = git_repo
     _git("tag", "-a", "v9.8.8", "-m", "v9.8.8", b)
