@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -33,3 +35,45 @@ jobs:
       - run: python -m playwright install --with-deps ${{ matrix.browser }}
       - run: python -m playwright --version
       - run: python -m pytest -vv -rxXfE tests/browser --browser ${{ matrix.browser }}
+  # Tags and releases a merged version bump (RELEASING.md step 4). A job here, not a
+  # workflow_run workflow, so it sees the push's `before` and runs only after every job passes.
+  release:
+    needs: [test, browsers]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'mtibbits/reVision'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: decide
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: python tools/release.py decide --before "$BEFORE" --after "$GITHUB_SHA"
+      - if: steps.decide.outputs.tag == 'true'
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" tag -a "v$VERSION" -m "reVision engine v$VERSION" "$GITHUB_SHA"
+          git push origin "refs/tags/v$VERSION"
+      - id: exists
+        if: steps.decide.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list -R "$GITHUB_REPOSITORY" --limit 1000 --json tagName > "$RUNNER_TEMP/releases.json"
+          python tools/release.py exists --version "$VERSION" --releases "$RUNNER_TEMP/releases.json"
+      - if: steps.decide.outputs.release == 'true' && steps.exists.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" > "$RUNNER_TEMP/pulls.json"
+          python tools/release.py notes --version "$VERSION" --sha "$GITHUB_SHA" --pulls "$RUNNER_TEMP/pulls.json" > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" -R "$GITHUB_REPOSITORY" --verify-tag --title "reVision engine v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
