@@ -135,6 +135,9 @@ def test_focus_and_blur_on_plain_anchor(nested):
     assert boxed(nested) == []
 
 
+@pytest.mark.xfail_browser(
+    "webkit", platforms=("win32",), reason="WebKit on Windows skips links on Tab (#81)", raises=AssertionError
+)
 def test_tab_from_phrase_into_its_link_reboxes_the_anchor(nested):
     nested.locator(PHRASE).focus()
     assert boxed(nested) == [7]

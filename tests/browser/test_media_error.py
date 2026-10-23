@@ -8,6 +8,7 @@ import shutil
 import threading
 from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -21,8 +22,50 @@ WAV = re.compile(r".*\.wav(\?.*)?$")
 APP = re.compile(r".*/assets/app\.[0-9a-f]+\.js$")
 
 
+class MediaGate:
+    """Holds the test server's media (which it always fails) or app.js until released."""
+
+    def __init__(self) -> None:
+        self.media = threading.Event()
+        self.app = threading.Event()
+        self.release()
+
+    def release(self) -> None:
+        self.media.set()
+        self.app.set()
+
+
+class _GatedHandler(_QuietHandler):
+    def __init__(self, *args, gate: MediaGate, **kwargs):
+        self.gate = gate  # before super().__init__, which serves the request
+        super().__init__(*args, **kwargs)
+
+    def send_head(self):
+        if WAV.match(self.path):
+            self.gate.media.wait(30)
+            self.send_error(404)
+            return None
+        if APP.match(self.path):
+            self.gate.app.wait(30)
+        return super().send_head()
+
+
+class GatedSite(NamedTuple):
+    url: str
+    gate: MediaGate
+
+
+def _serve_gated(out: Path):
+    gate = MediaGate()
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), partial(_GatedHandler, gate=gate, directory=str(out)))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield GatedSite(f"http://127.0.0.1:{server.server_address[1]}/intro/hello/", gate)
+    gate.release()
+    server.shutdown()
+
+
 @pytest.fixture(scope="module")
-def long_media_url(tmp_path_factory):
+def long_media(tmp_path_factory):
     root = tmp_path_factory.mktemp("media")
     src = root / "m"
     shutil.copytree(Path(__file__).resolve().parents[2] / "examples" / "minimal", src)
@@ -35,32 +78,41 @@ def long_media_url(tmp_path_factory):
     narrate(lesson, SilentSynthesizer(rate=8000, seconds_per_char=0.01), voice="silent-fixture")
     out = root / "out"
     build(src, output=out, commit=FIXED)
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), partial(_QuietHandler, directory=str(out)))
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{server.server_address[1]}/intro/hello/"
-    server.shutdown()
+    yield from _serve_gated(out)
 
 
-def fail_media(page, url: str, order: str) -> list[str]:
-    """Load url with its media failing before ("early") or after ("late") the deferred app.js runs."""
+@pytest.fixture(scope="module")
+def short_media(site_out):
+    yield from _serve_gated(site_out)
+
+
+def fail_media(page, site: GatedSite, order: str) -> list[str]:
+    """Load site with its media failing before ("early") or after ("late") the deferred app.js runs.
+
+    The server fails the media, not page.route: WebKit's media requests never reach Playwright, so a route
+    neither sees nor fails them."""
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    held: list = []
-    if order == "late":
-        page.route(WAV, lambda r: held.append(r))
-        page.goto(url, wait_until="domcontentloaded")  # a held media request delays "load"
-        page.wait_for_function("window.RV !== undefined")
-        held[0].abort()
-    else:
-        page.route(WAV, lambda r: r.abort())
-        page.route(APP, lambda r: held.append(r))
-        page.goto(url, wait_until="commit")
-        page.wait_for_function(
-            "(() => { const m = document.getElementById('rv-media-el'); return !!m && m.error !== null; })()"
-        )
-        held[0].continue_()
-        page.wait_for_function("window.RV !== undefined")
-    page.wait_for_function("!document.querySelector('.rv-media-error').hidden", timeout=5000)
+    gate = site.gate
+    try:
+        if order == "late":
+            gate.media.clear()
+            page.goto(site.url, wait_until="domcontentloaded")  # a held media request delays "load"
+            page.wait_for_function("window.RV !== undefined")
+            assert page.evaluate("document.getElementById('rv-media-el').error === null")
+            gate.media.set()
+        else:
+            gate.app.clear()
+            page.goto(site.url, wait_until="commit")
+            page.wait_for_function(
+                "(() => { const m = document.getElementById('rv-media-el'); return !!m && m.error !== null; })()"
+            )
+            assert page.evaluate("window.RV === undefined")
+            gate.app.set()
+            page.wait_for_function("window.RV !== undefined")
+        page.wait_for_function("!document.querySelector('.rv-media-error').hidden", timeout=5000)
+    finally:
+        gate.release()
     return errors
 
 
@@ -91,9 +143,9 @@ def measure(page) -> dict:
 
 @pytest.mark.parametrize("width", [1400, 700])
 @pytest.mark.parametrize("order", ["early", "late"])
-def test_error_message_visible_with_long_transcript(page, long_media_url, order, width):
+def test_error_message_visible_with_long_transcript(page, long_media, order, width):
     page.set_viewport_size({"width": width, "height": 800})
-    errors = fail_media(page, long_media_url, order)
+    errors = fail_media(page, long_media, order)
     m = measure(page)
     assert m["segCount"] == SEGMENTS, m  # the subject: a transcript longer than the pane
     assert m["tScroll"] > m["tClient"], m
@@ -105,9 +157,9 @@ def test_error_message_visible_with_long_transcript(page, long_media_url, order,
     assert errors == []
 
 
-def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media_url):
+def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media):
     page.set_viewport_size({"width": 1400, "height": 800})
-    errors = fail_media(page, long_media_url, "late")
+    errors = fail_media(page, long_media, "late")
     box = page.evaluate(
         """(() => {
           const t = document.getElementById('rv-transcript');
@@ -124,10 +176,10 @@ def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media_url)
 
 @pytest.mark.parametrize("case", ["long", "short"])
 @pytest.mark.parametrize("order", ["early", "late"])
-def test_failed_pane_fits_content_and_caps(page, long_media_url, site_url, order, case):
+def test_failed_pane_fits_content_and_caps(page, long_media, short_media, order, case):
     page.set_viewport_size({"width": 1400, "height": 800})
-    url = long_media_url if case == "long" else site_url + "intro/hello/"
-    errors = fail_media(page, url, order)
+    site = long_media if case == "long" else short_media
+    errors = fail_media(page, site, order)
     m = measure(page)
     assert m["msgH"] > 0 and m["msgInside"], m
     assert m["paneH"] <= m["cap"] + 0.5, m

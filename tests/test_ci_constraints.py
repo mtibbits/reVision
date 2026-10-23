@@ -109,6 +109,30 @@ def test_test_workflow_installs_with_the_constraints():
         )
 
 
+def test_browser_tests_run_in_every_engine():
+    workflow = yaml.safe_load(TEST_WORKFLOW.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    engines: set[str] = set()
+    for job in jobs.values():
+        for step in job["steps"]:
+            for tokens in _commands(step.get("run", "")):
+                for i, flag in enumerate(tokens[:-1]):
+                    if flag != "--browser":
+                        continue
+                    if tokens[i + 1 : i + 4] == ["${{", "matrix.browser", "}}"]:
+                        engines.update(job["strategy"]["matrix"]["browser"])
+                    elif not tokens[i + 1].startswith("${{"):
+                        engines.add(tokens[i + 1])
+    assert engines == {"chromium", "firefox", "webkit"}
+    # The golden gate stays on the required `test` job, which stays one un-matrixed check.
+    assert jobs["test"]["env"]["RV_REQUIRE_GOLDEN"] == "1"
+    assert "strategy" not in jobs["test"]
+    others = [job for name, job in jobs.items() if name != "test"]
+    envs = [workflow.get("env")] + [e for job in others for e in [job.get("env"), *(s.get("env") for s in job["steps"])]]
+    for env in envs:
+        assert "RV_REQUIRE_GOLDEN" not in (env or {})
+
+
 def test_install_command_is_documented_verbatim():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     # Every home of the command, so one stale copy cannot hide behind a correct one.
