@@ -6,6 +6,9 @@ version (tests/test_release_doc.py).
 
 from __future__ import annotations
 
+import json
+import subprocess
+
 import pytest
 
 from tools.release import (
@@ -13,7 +16,9 @@ from tools.release import (
     NOTHING,
     Decision,
     ReleaseError,
+    annotation,
     decide,
+    main,
     release_exists,
     release_notes,
     release_pull,
@@ -184,3 +189,101 @@ def test_notes_empty_section_errors():
 def test_notes_null_body_errors():
     with pytest.raises(ReleaseError, match=MISSING):
         release_notes(None, "9.8.8", 12)
+
+
+def _git(*args: str) -> str:
+    cmd = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args]
+    return subprocess.run(cmd, check=True, capture_output=True, encoding="utf-8").stdout.strip()
+
+
+@pytest.fixture
+def git_repo(tmp_path, monkeypatch):
+    """A repo with commit A at 9.8.7 (annotated tag v9.8.7) and commit B bumping to 9.8.8."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    _git("init", "-q", "-b", "main")
+    pyproject = root / "pyproject.toml"
+    pyproject.write_text('[project]\nversion = "9.8.7"\n', encoding="utf-8", newline="\n")
+    _git("add", "pyproject.toml")
+    _git("commit", "-q", "-m", "A")
+    a = _git("rev-parse", "HEAD")
+    _git("tag", "-a", "v9.8.7", "-m", "v9.8.7")
+    pyproject.write_text('[project]\nversion = "9.8.8"\n', encoding="utf-8", newline="\n")
+    _git("commit", "-q", "-am", "B")
+    b = _git("rev-parse", "HEAD")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "out"))
+    return a, b
+
+
+def _out(tmp_path) -> str:
+    return (tmp_path / "out").read_text(encoding="utf-8")
+
+
+def test_cli_decide_bump_writes_outputs(git_repo, tmp_path):
+    a, b = git_repo
+    assert main(["decide", "--before", a, "--after", b]) == 0
+    assert _out(tmp_path) == "version=9.8.8\ntag=true\nrelease=true\n"
+
+
+def test_cli_decide_peels_annotated_tags(git_repo, tmp_path):
+    a, b = git_repo
+    _git("tag", "-a", "v9.8.8", "-m", "v9.8.8", b)
+    assert main(["decide", "--before", a, "--after", b]) == 0
+    assert _out(tmp_path) == "version=9.8.8\ntag=false\nrelease=true\n"
+
+
+def test_cli_decide_without_github_output_prints(git_repo, monkeypatch, capsys):
+    a, b = git_repo
+    monkeypatch.delenv("GITHUB_OUTPUT")
+    assert main(["decide", "--before", a, "--after", b]) == 0
+    assert capsys.readouterr().out == "version=9.8.8\ntag=true\nrelease=true\n"
+
+
+def test_cli_unknown_before_fails_loudly(git_repo, tmp_path, capsys):
+    _, b = git_repo
+    assert main(["decide", "--before", "0" * 40, "--after", b]) == 1
+    first = capsys.readouterr().err.splitlines()[0]
+    assert first.startswith("::error::cannot read pyproject.toml at 0000")
+    assert "RELEASING.md steps 4-5" in first
+    assert not (tmp_path / "out").exists()
+
+
+def test_cli_exists_writes_output(git_repo, tmp_path):
+    releases = tmp_path / "releases.json"
+    releases.write_text(json.dumps([{"tagName": "v9.8.8"}]), encoding="utf-8")
+    assert main(["exists", "--version", "9.8.8", "--releases", str(releases)]) == 0
+    assert _out(tmp_path) == "exists=true\n"
+
+
+def _pulls_file(tmp_path, body: str):
+    pulls = tmp_path / "pulls.json"
+    pulls.write_text(json.dumps([_pull(12, body=body)]), encoding="utf-8")
+    return str(pulls)
+
+
+def test_cli_notes_prints_notes(tmp_path, capsys):
+    pulls = _pulls_file(tmp_path, "## Release notes\r\n- thing (#9)\r\n")
+    assert main(["notes", "--version", "9.8.8", "--sha", H, "--pulls", pulls]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("- thing (#9)\n")
+    assert '@v9.8.8"' in out
+
+
+def test_cli_notes_error_goes_to_stderr(tmp_path, capsys):
+    pulls = _pulls_file(tmp_path, "## Summary\nx")
+    assert main(["notes", "--version", "9.8.8", "--sha", H, "--pulls", pulls]) == 1
+    captured = capsys.readouterr()
+    assert captured.err.startswith("::error::PR #12 has no '## Release notes' section")
+    assert captured.out == ""
+
+
+def test_annotation_escapes_newlines():
+    assert annotation("a\nb%c\r\n") == "::error::a%0Ab%25c"
+
+
+def test_cli_decide_resolves_a_short_after_sha(git_repo, tmp_path):
+    a, b = git_repo
+    _git("tag", "-a", "v9.8.8", "-m", "v9.8.8", b)
+    assert main(["decide", "--before", a[:7], "--after", b[:7]]) == 0
+    assert _out(tmp_path) == "version=9.8.8\ntag=false\nrelease=true\n"

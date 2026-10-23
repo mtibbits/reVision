@@ -7,7 +7,13 @@ without installing anything.
 
 from __future__ import annotations
 
+import argparse
+import json
+import os
 import re
+import subprocess
+import sys
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -149,3 +155,97 @@ def release_notes(body: str | None, version: str, number: int) -> str:
             "re-run this job, or create the release by hand: RELEASING.md step 5."
         )
     return text + "\n\n" + INSTALL_BLOCK.format(version=version)
+
+
+def annotation(message: str) -> str:
+    """A GitHub Actions error annotation, escaped so the whole message stays on one line."""
+    escaped = message.strip().replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    return "::error::" + escaped
+
+
+def _git(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], capture_output=True, encoding="utf-8")
+
+
+def _version_at(sha: str) -> str | None:
+    shown = _git("show", f"{sha}:pyproject.toml")
+    if shown.returncode != 0:
+        raise ReleaseError(
+            f"cannot read pyproject.toml at {sha}: {shown.stderr.strip()}; is the commit "
+            "fetched? Tag and release by hand: RELEASING.md steps 4-5."
+        )
+    return tomllib.loads(shown.stdout).get("project", {}).get("version")
+
+
+def _commit(sha: str) -> str:
+    """The full SHA, so it compares equal to the commits that tags point at."""
+    return _git("rev-parse", "--verify", f"{sha}^{{commit}}").stdout.strip()
+
+
+def _tags() -> dict[str, str]:
+    """Tag name -> the commit it points at, with annotated tags peeled."""
+    listed = _git(
+        "for-each-ref", "refs/tags", "--format=%(refname:strip=2) %(objectname) %(*objectname)"
+    )
+    if listed.returncode != 0:
+        raise ReleaseError(f"cannot list tags: {listed.stderr.strip()}")
+    tags = {}
+    for line in listed.stdout.splitlines():
+        name, *objects = line.split()
+        tags[name] = objects[-1]
+    return tags
+
+
+def _load(path: str) -> list[dict]:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _flag(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def _emit(outputs: dict[str, str]) -> None:
+    lines = "".join(f"{key}={value}\n" for key, value in outputs.items())
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a", encoding="utf-8", newline="\n") as f:
+            f.write(lines)
+    else:
+        sys.stdout.write(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    commands = parser.add_subparsers(dest="command", required=True)
+    p = commands.add_parser("decide", help="whether this push tags and releases (git only)")
+    p.add_argument("--before", required=True)
+    p.add_argument("--after", required=True)
+    p = commands.add_parser("exists", help="whether the version's release exists")
+    p.add_argument("--version", required=True)
+    p.add_argument("--releases", required=True, help="output of gh release list --json tagName")
+    p = commands.add_parser("notes", help="print the release notes from the release PR")
+    p.add_argument("--version", required=True)
+    p.add_argument("--sha", required=True)
+    p.add_argument("--pulls", required=True, help="output of gh api commits/{sha}/pulls")
+    args = parser.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+    try:
+        if args.command == "decide":
+            before, after = _version_at(args.before), _version_at(args.after)
+            d = decide(before, after, _tags(), _commit(args.after))
+            _emit({"version": d.version or "", "tag": _flag(d.tag), "release": _flag(d.release)})
+        elif args.command == "exists":
+            _emit({"exists": _flag(release_exists(_load(args.releases), args.version))})
+        else:
+            pull = release_pull(_load(args.pulls), args.sha)
+            sys.stdout.write(release_notes(pull["body"], args.version, pull["number"]))
+    except ReleaseError as e:
+        print(annotation(str(e)), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
