@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
 
 import pytest
 import yaml
 
+from tests.ci_pins import ROOT
+from tests.test_release_doc import INSTALL_RE
 from tools.release import (
     INSTALL_BLOCK,
     NOTHING,
@@ -129,6 +130,10 @@ def test_notes_extracts_section():
     assert out.startswith("### Fixes\n- thing (#9)")
     assert "Testing" not in out
     assert out.endswith(INSTALL_BLOCK.format(version="9.8.8"))
+
+
+def test_install_block_matches_readme_install_line():
+    assert INSTALL_RE.findall(INSTALL_BLOCK.format(version="9.8.8")) == ["9.8.8"]
 
 
 def test_notes_crlf_body():
@@ -291,7 +296,7 @@ def test_cli_decide_resolves_a_short_after_sha(git_repo, tmp_path):
     assert _out(tmp_path) == "version=9.8.8\ntag=false\nrelease=true\n"
 
 
-WORKFLOW = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "test.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
 
 
 def _workflow() -> dict:
