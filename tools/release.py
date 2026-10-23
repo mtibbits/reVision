@@ -65,3 +65,87 @@ def decide(before: str | None, after: str | None, tags: Mapping[str, str], head:
             "the version in pyproject.toml."
         )
     return Decision(after, tag=True, release=True)
+
+
+# Found with fullmatch on a line's strip(), so case and spacing do not matter.
+NOTES_HEADING_RE = re.compile(r"##\s+release notes", re.IGNORECASE)
+INSTALL_BLOCK = (
+    "Install:\n\n```bash\n"
+    'pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v{version}"\n'
+    "```\n"
+)
+
+
+def release_exists(releases: list[dict], version: str) -> bool:
+    """Whether `gh release list --json tagName` lists the version's release. Drafts count."""
+    return any(r["tagName"] == "v" + version for r in releases)
+
+
+def release_pull(pulls: list[dict], sha: str) -> dict:
+    """The one merged pull request into main among `commits/{sha}/pulls`."""
+    merged = [p for p in pulls if p.get("merged_at") and p["base"]["ref"] == "main"]
+    if not merged:
+        raise ReleaseError(
+            f"no merged pull request into main found for {sha[:12]}; create the release by "
+            "hand: RELEASING.md step 5."
+        )
+    if len(merged) > 1:
+        numbers = ", ".join(f"#{p['number']}" for p in merged)
+        raise ReleaseError(
+            f"several merged pull requests found for {sha[:12]}: {numbers}; create the release "
+            "by hand: RELEASING.md step 5."
+        )
+    return merged[0]
+
+
+def _fenced(lines: list[str]) -> list[bool]:
+    """Which lines are code-fence lines or inside a fence (backticks or tildes, 3 or more)."""
+    out = []
+    fence = ""
+    for line in lines:
+        if fence:
+            out.append(True)
+            stripped = line.strip()
+            if stripped.startswith(fence) and stripped == fence[0] * len(stripped):
+                fence = ""
+            continue
+        m = re.match(r"(`{3,}|~{3,})", line.lstrip())
+        if m:
+            fence = m.group(1)
+        out.append(bool(m))
+    return out
+
+
+def release_notes(body: str | None, version: str, number: int) -> str:
+    """The `## Release notes` section of the PR description, followed by the install block.
+
+    The section runs to the next `#` or `##` heading outside a code fence. The body is only
+    ever data: CI writes the result to a file for `gh release create --notes-file`.
+    """
+    lines = (body or "").splitlines()
+    fenced = _fenced(lines)
+    start = next(
+        (
+            i + 1
+            for i, line in enumerate(lines)
+            if not fenced[i] and NOTES_HEADING_RE.fullmatch(line.strip())
+        ),
+        None,
+    )
+    section: list[str] = []
+    if start is not None:
+        for i in range(start, len(lines)):
+            if not fenced[i] and lines[i].startswith(("# ", "## ")):
+                break
+            section.append(lines[i])
+    while section and not section[0].strip():
+        section.pop(0)
+    while section and not section[-1].strip():
+        section.pop()
+    text = "\n".join(section)
+    if not text:
+        raise ReleaseError(
+            f"PR #{number} has no '## Release notes' section; add one to its description and "
+            "re-run this job, or create the release by hand: RELEASING.md step 5."
+        )
+    return text + "\n\n" + INSTALL_BLOCK.format(version=version)
