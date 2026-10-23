@@ -152,6 +152,13 @@ def test_notes_fence_and_subheads_kept():
     assert "- done" in out
 
 
+def test_notes_inline_triple_backticks_open_no_fence():
+    body = "\n".join(["## Release notes", "```rv2 build``` is faster", "## Testing", "- internal"])
+    out = release_notes(body, "9.8.8", 12)
+    assert out.startswith("```rv2 build``` is faster\n\nInstall:")
+    assert "internal" not in out
+
+
 def test_notes_tilde_inside_backtick_fence_kept():
     body = "\n".join(["## Release notes", "```", "~~~", "## still code", "```", "- after", "## End"])
     out = release_notes(body, "9.8.8", 12)

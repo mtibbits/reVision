@@ -118,6 +118,9 @@ def _fenced(lines: list[str]) -> list[bool]:
                 fence = ""
             continue
         m = re.match(r"(`{3,}|~{3,})", line.lstrip())
+        # A backtick fence's info string holds no backtick (CommonMark); such a line is inline code.
+        if m and m.group(1)[0] == "`" and "`" in line.lstrip()[m.end() :]:
+            m = None
         if m:
             fence = m.group(1)
         out.append(bool(m))
