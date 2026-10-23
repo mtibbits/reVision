@@ -75,6 +75,8 @@ def decide(before: str | None, after: str | None, tags: Mapping[str, str], head:
 
 # Found with fullmatch on a line's strip(), so case and spacing do not matter.
 NOTES_HEADING_RE = re.compile(r"##\s+release notes", re.IGNORECASE)
+# A `#` or `##` heading as Markdown reads it (up to 3 spaces of indent), which ends the section.
+SECTION_END_RE = re.compile(r" {0,3}#{1,2}(?:[ \t]|$)")
 INSTALL_BLOCK = (
     "Install:\n\n```bash\n"
     'pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v{version}"\n'
@@ -141,7 +143,7 @@ def release_notes(body: str | None, version: str, number: int) -> str:
     section: list[str] = []
     if start is not None:
         for i in range(start, len(lines)):
-            if not fenced[i] and lines[i].startswith(("# ", "## ")):
+            if not fenced[i] and SECTION_END_RE.match(lines[i]):
                 break
             section.append(lines[i])
     while section and not section[0].strip():

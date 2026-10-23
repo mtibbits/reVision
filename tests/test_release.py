@@ -371,3 +371,10 @@ def test_release_job_tag_message_and_title():
     assert '--title "reVision engine v$VERSION"' in create
     assert "--verify-tag" in create
     assert [run for run in runs if "--force" in run or " -f " in run] == []
+
+
+@pytest.mark.parametrize("heading", [" ## Testing", "   # Testing", "##\tTesting", "##"])
+def test_notes_ends_at_any_level_one_or_two_heading(heading):
+    out = release_notes("\n".join(["## Release notes", "- real", heading, "- internal"]), "9.8.8", 12)
+    assert out.startswith("- real\n\nInstall:")
+    assert "internal" not in out

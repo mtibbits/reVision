@@ -60,7 +60,7 @@ The **release PR** is the pull request that carries the version bump. It can be 
 
    If `main` already carries a version that was never tagged, because its bump merged and step 4 was skipped, tag `main` itself rather than the old bump commit. Do this only when CI is green on `main` and the version files there still name that version. Everything merged since the last tag then ships in this version, so the step 5 notes cover all of it.
 
-5. **Fallback: create the GitHub release by hand**, when step 4's job did not. Save the description in a notes file: the PR's `## Release notes` section, followed by `Install:` and the install command from [What a release is](#what-a-release-is) in a `bash` code block:
+5. **Fallback: create the GitHub release by hand**, when step 4's job did not. Save the description in a notes file: the PR's `## Release notes` section, plus what else merged since the last tag when you tagged `main` itself, followed by `Install:` and the install command from [What a release is](#what-a-release-is) in a `bash` code block:
 
    ```bash
    gh release create vX.Y.Z -R mtibbits/reVision --verify-tag --title "reVision engine vX.Y.Z" --notes-file notes.md
