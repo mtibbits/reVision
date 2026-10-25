@@ -11,7 +11,7 @@ Revision control, revisited.
 ## Add reVision to a repository
 
 1. Install the engine: `pip install revision-engine`. To pin a release tag instead:
-   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.2.0"`, which needs `git`.
+   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.2.1"`, which needs `git`.
    Graphviz (`dot`) must be on the PATH for diagrams.
 2. Create `revision.yaml` at the repository root:
    ```yaml
