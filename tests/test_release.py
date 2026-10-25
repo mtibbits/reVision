@@ -6,8 +6,11 @@ version (tests/test_release_doc.py).
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
+import tarfile
+import zipfile
 
 import pytest
 import yaml
@@ -20,6 +23,7 @@ from tools.release import (
     Decision,
     ReleaseError,
     annotation,
+    check_dist,
     decide,
     main,
     release_exists,
@@ -319,6 +323,116 @@ def test_cli_decide_resolves_a_short_after_sha(git_repo, tmp_path):
     _git("tag", "-a", "v9.8.8", "-m", "v9.8.8", b)
     assert main(["decide", "--before", a[:7], "--after", b[:7]]) == 0
     assert _out(tmp_path) == "version=9.8.8\ntag=false\nrelease=true\n"
+
+
+WHEEL = "revision_engine-{v}-py3-none-any.whl"
+SDIST = "revision_engine-{v}.tar.gz"
+
+
+def _metadata(name: str, version: str) -> bytes:
+    # A non-ASCII description, as README makes it, so the reader must decode UTF-8.
+    head = f"Metadata-Version: 2.4\nName: {name}\nVersion: {version}\n"
+    return (head + "\nreVision — docs\n").encode()
+
+
+def _dist(
+    tmp_path,
+    version,
+    *,
+    meta_version=None,
+    name="revision-engine",
+    extra=(),
+    wheel_meta=None,
+    sdist_meta=None,
+):
+    """A dist/ directory holding a minimal wheel and sdist built for `version`."""
+    d = tmp_path / "dist"
+    d.mkdir()
+    meta = _metadata(name, meta_version or version)
+    with zipfile.ZipFile(d / WHEEL.format(v=version), "w") as z:
+        if wheel_meta is not False:
+            z.writestr(f"revision_engine-{version}.dist-info/METADATA", wheel_meta or meta)
+    with tarfile.open(d / SDIST.format(v=version), "w:gz") as t:
+        data = sdist_meta or meta
+        info = tarfile.TarInfo(f"revision_engine-{version}/PKG-INFO")
+        info.size = len(data)
+        t.addfile(info, io.BytesIO(data))
+    for e in extra:
+        (d / e).write_bytes(b"")
+    return d
+
+
+def test_check_dist_accepts_matching_files(tmp_path):
+    d = _dist(tmp_path, "9.8.8")
+    assert check_dist(str(d), "9.8.8") == [WHEEL.format(v="9.8.8"), SDIST.format(v="9.8.8")]
+
+
+@pytest.mark.parametrize("version", ["9.8.8.dev0", "9.8.8+gabc1234", "9.8.8rc1", "9.8"])
+def test_check_dist_rejects_non_final(tmp_path, version):
+    d = _dist(tmp_path, version)
+    with pytest.raises(ReleaseError, match="not a final release version"):
+        check_dist(str(d), version)
+
+
+@pytest.mark.parametrize("built", ["9.8.8.dev0", "9.8.8+gabc1234"])
+def test_check_dist_rejects_non_final_build(tmp_path, built):
+    d = _dist(tmp_path, built)
+    with pytest.raises(ReleaseError, match=r"the build is not version 9\.8\.8"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_check_dist_rejects_another_version(tmp_path):
+    d = _dist(tmp_path, "9.8.7")
+    with pytest.raises(ReleaseError, match=r"the build is not version 9\.8\.8") as e:
+        check_dist(str(d), "9.8.8")
+    assert "revision_engine-9.8.7" in str(e.value)
+
+
+def test_check_dist_rejects_extra_file(tmp_path):
+    d = _dist(tmp_path, "9.8.8", extra=("revision_engine-9.8.8-py3-none-any.whl.asc",))
+    with pytest.raises(ReleaseError, match="expected"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_check_dist_rejects_missing_sdist(tmp_path):
+    d = _dist(tmp_path, "9.8.8")
+    (d / SDIST.format(v="9.8.8")).unlink()
+    with pytest.raises(ReleaseError, match="expected"):
+        check_dist(str(d), "9.8.8")
+
+
+@pytest.mark.parametrize("kind", ["wheel", "sdist"])
+def test_check_dist_rejects_metadata_version(tmp_path, kind):
+    wrong = _metadata("revision-engine", "9.8.7")
+    d = _dist(tmp_path, "9.8.8", **{f"{kind}_meta": wrong})
+    with pytest.raises(ReleaseError, match=r"declares Version '9\.8\.7', expected '9\.8\.8'"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_check_dist_rejects_metadata_name(tmp_path):
+    d = _dist(tmp_path, "9.8.8", name="revision-engine-x")
+    with pytest.raises(ReleaseError, match="declares Name"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_check_dist_rejects_missing_member(tmp_path):
+    d = _dist(tmp_path, "9.8.8", wheel_meta=False)
+    with pytest.raises(ReleaseError, match=r"has no revision_engine-9\.8\.8\.dist-info/METADATA"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_cli_dist_ok(tmp_path, capsys):
+    d = _dist(tmp_path, "9.8.8")
+    assert main(["dist", "--version", "9.8.8", "--dir", str(d)]) == 0
+    assert capsys.readouterr().out == (
+        "checked revision_engine-9.8.8-py3-none-any.whl\nchecked revision_engine-9.8.8.tar.gz\n"
+    )
+
+
+def test_cli_dist_error_goes_to_stderr(tmp_path, capsys):
+    d = _dist(tmp_path, "9.8.7")
+    assert main(["dist", "--version", "9.8.8", "--dir", str(d)]) == 1
+    assert capsys.readouterr().err.startswith("::error::")
 
 
 WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
