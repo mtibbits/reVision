@@ -30,7 +30,8 @@ CI_ONLY = pytest.mark.skipif(
     reason="CI-only (RV_REQUIRE_GOLDEN=1 unset); to match CI locally: " + INSTALL_CMD,
 )
 TEST_WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
-SEPARATORS = {"&&", "||", ";", "|"}
+DEMO_WORKFLOW = ROOT / ".github" / "workflows" / "demo.yml"
+SEPARATORS = {"&&", "||", ";", "|", "|&"}
 
 
 def test_pins_cover_the_runtime_dependencies():
@@ -72,14 +73,19 @@ def test_pin_mismatches_reports_installed_and_missing():
     assert pin_mismatches(pins, version)[0] == "a not installed, CI pins 1.0"
 
 
+def _tokens(text: str) -> list[str]:
+    """Split shell text into tokens, with operators such as `||` as tokens of their own."""
+    lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    return list(lexer)
+
+
 def _commands(run: str) -> list[list[str]]:
     """Split a workflow `run` string into commands, each a list of shell tokens."""
     commands: list[list[str]] = []
     for line in run.splitlines():
-        lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
-        lexer.whitespace_split = True
         current: list[str] = []
-        for token in lexer:
+        for token in _tokens(line):
             if token in SEPARATORS:
                 commands.append(current)
                 current = []
@@ -131,6 +137,46 @@ def test_browser_tests_run_in_every_engine():
     envs = [workflow.get("env")] + [e for job in others for e in [job.get("env"), *(s.get("env") for s in job["steps"])]]
     for env in envs:
         assert "RV_REQUIRE_GOLDEN" not in (env or {})
+
+
+def test_demo_workflow_checks_before_building():
+    workflow = yaml.safe_load(DEMO_WORKFLOW.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["build"]
+    steps = job["steps"]
+    name = DEMO_WORKFLOW.name
+    cmds = [_commands(step.get("run", "")) for step in steps]
+    checks = [
+        i
+        for i, cs in enumerate(cmds)
+        if any(c[:2] == ["rv2", "check"] and "--strict" in c for c in cs)
+    ]
+    builds = [i for i, cs in enumerate(cmds) if any(c[:2] == ["rv2", "build"] for c in cs)]
+    assert len(checks) == 1, (
+        f"{name}: expected exactly one `rv2 check --strict` step, found {len(checks)}"
+    )
+    assert len(builds) == 1, f"{name}: expected exactly one `rv2 build` step, found {len(builds)}"
+    [check_i], [build_i] = checks, builds
+    # One command only, so `|| true`, `| tee` or `;` cannot swallow the check's exit status.
+    assert len(cmds[check_i]) == 1, (
+        f"{name}: the check step must run one command, not {cmds[check_i]}"
+    )
+    # `_commands` drops a trailing separator, so a backgrounding `&` needs the raw tokens.
+    assert not (SEPARATORS | {"&"}).intersection(_tokens(steps[check_i]["run"])), (
+        f"{name}: the check step must not chain or background"
+    )
+    assert check_i < build_i, f"{name}: the strict check must run before rv2 build"
+    assert "continue-on-error" not in steps[check_i], (
+        f"{name}: the check step must not continue on error"
+    )
+    assert "if" not in steps[check_i], f"{name}: the check step must not be conditional"
+    assert "continue-on-error" not in job, f"{name}: the build job must not continue on error"
+    build_cmd = next(c for c in cmds[build_i] if c[:2] == ["rv2", "build"])
+    for tokens in (cmds[check_i][0], build_cmd):
+        # Exactly one `--root`: argparse would honour a second one.
+        assert tokens.count("--root") == 1, f"{name}: {shlex.join(tokens)!r} must pass one --root"
+        assert _has_adjacent(tokens, "--root", "examples/minimal"), (
+            f"{name}: the check must gate the root that is built"
+        )
 
 
 def test_install_command_is_documented_verbatim():

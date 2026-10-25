@@ -19,6 +19,8 @@ jobs:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y graphviz
       - run: python -m pip install -e .
+      # tests/test_ci_constraints.py::test_demo_workflow_checks_before_building pins this step before rv2 build.
+      - run: rv2 check --strict --root examples/minimal
       - run: rv2 build --root examples/minimal --output public
       - uses: actions/upload-pages-artifact@v3
         with:

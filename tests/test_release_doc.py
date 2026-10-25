@@ -129,6 +129,24 @@ def test_docs_do_not_install_from_pypi():
     )
 
 
+def test_deploy_runs_the_strict_check_before_building():
+    text = README.read_text(encoding="utf-8")
+    start = text.index("## Deploy")
+    # The editor note above the recipe must never satisfy this test.
+    raw = text[start : text.index("\n## ", start)]
+    section = " ".join(re.sub(r"<!--.*?-->", "", raw, flags=re.S).split())
+    github, label, gitlab = section.partition("GitLab CI:")
+    assert label, "README ## Deploy has no 'GitLab CI:' recipe"
+    for platform, part in (("GitHub Actions", github), ("GitLab CI", gitlab)):
+        assert "rv2 check --strict" in part, (
+            f"README ## Deploy: {platform} recipe does not run rv2 check --strict"
+        )
+        assert "rv2 build" in part, f"README ## Deploy: {platform} recipe does not run rv2 build"
+        assert part.index("rv2 check --strict") < part.index("rv2 build"), (
+            f"README ## Deploy: {platform} recipe runs rv2 build before rv2 check --strict"
+        )
+
+
 def test_release_doc_lists_every_version_carrier():
     carriers = _carriers(revision_engine.__version__)
     listed = _listed()
