@@ -3,9 +3,6 @@
 The carrier set is derived, not listed here: tracked files whose text contains the current
 version literal, minus the non-carriers below. A file that starts carrying the version fails
 until RELEASING.md lists it.
-
-README.md and the CI constraints file must also never name the engine's package in a form that
-installs it from PyPI, where it is not published.
 """
 
 from __future__ import annotations
@@ -24,11 +21,9 @@ CARRIERS_HEADING = "## Files that carry the version"
 INSTALL_RE = re.compile(
     r"revision-engine @ git\+https://github\.com/mtibbits/reVision@v(\d+\.\d+\.\d+)"
 )
-# Any mention of the package name, spelled as pip would normalise it (case, runs of -, _, .), that
-# is not in the "@ git+" form installs from PyPI. A module path (name followed by / or . and a word
-# character) is not an install.
-BARE_NAME_RE = re.compile(r"(?i)\brevision[-_.]+engine\b(?![./]\w)(?!\s*@\s*git\+)")
-PYPI_GUARDED = (README, CONSTRAINTS)
+# A PyPI install pinned to a version: a second version site that test_version_sites_agree does
+# not read.
+PINNED_PYPI_RE = re.compile(r"(?i)\brevision[-_.]+engine\s*(?:===?|~=|!=|<=?|>=?)\s*\d")
 # Path prefixes of tracked files that are never carriers.
 NON_CARRIERS = (
     # Pins third-party packages; a pin may share the engine's version string by chance.
@@ -93,39 +88,23 @@ def test_version_sites_agree():
     assert len(set(sites.values())) == 1, f"version sites disagree: {sites}"
 
 
-def test_bare_name_re_flags_pypi_installs_only():
-    # Built from PKG so a repo-wide grep for the PyPI install finds only real hits, not this file.
-    PKG = "revision-engine"
+def test_pinned_pypi_re_controls():
+    for text in ("revision-engine==9.8.7", "Revision_Engine>=9.8", "revision-engine ~= 9.8"):
+        assert PINNED_PYPI_RE.search(text), text
     for text in (
-        f"`pip install {PKG}`",
-        f"pip3 install {PKG}.",
-        "pip install -c c.txt Revision_Engine",
-        "pip install revision__engine",
-        f"{PKG}==9.8.7",
-        f"python -m pip install '{PKG}'",
+        "`pip install revision-engine`",
+        "revision-engine @ git+https://github.com/mtibbits/reVision@v9.8.7",
     ):
-        assert BARE_NAME_RE.search(text), text
-    for text in (
-        f'pip install "{PKG} @ git+https://github.com/mtibbits/reVision@vX.Y.Z"',
-        f'pip install "{PKG} @\n   git+https://github.com/mtibbits/reVision@vX.Y.Z"',
-        "revision_engine/static/app.js",
-        "revision_engine.__version__",
-    ):
-        assert not BARE_NAME_RE.search(text), text
+        assert not PINNED_PYPI_RE.search(text), text
 
 
-def test_docs_do_not_install_from_pypi():
-    hits = []
-    for path in PYPI_GUARDED:
-        # The whole text, not line by line, so "@ git+" wrapped onto the next line still counts.
-        text = path.read_text(encoding="utf-8")
-        for m in BARE_NAME_RE.finditer(text):
-            line = text.count("\n", 0, m.start()) + 1
-            hits.append(f"{path.relative_to(ROOT).as_posix()}:{line}")
-    assert not hits, (
-        f"{hits} name the engine's package without the by-tag '@ git+' form, so pip would install "
-        "it from PyPI, where the engine is not published (RELEASING.md); point at README's step 1 "
-        "instead. Publishing (#56) retires this test."
+def test_readme_pypi_install_carries_no_version():
+    readme = README.read_text(encoding="utf-8")
+    assert "`pip install revision-engine`" in readme, "README.md has no PyPI install line"
+    m = PINNED_PYPI_RE.search(readme)
+    assert m is None, (
+        f"README.md pins a PyPI install ({m and m.group(0)!r}): a second version site that "
+        "test_version_sites_agree does not read; keep the PyPI line unversioned"
     )
 
 
