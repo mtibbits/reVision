@@ -86,6 +86,9 @@ jobs:
     needs: release
     if: needs.release.outputs.version != ''
     runs-on: ubuntu-24.04
+    outputs:
+      wheel-sha256: ${{ steps.digests.outputs.wheel }}
+      sdist-sha256: ${{ steps.digests.outputs.sdist }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,6 +102,14 @@ jobs:
       - env:
           VERSION: ${{ needs.release.outputs.version }}
         run: python tools/release.py dist --version "$VERSION" --dir dist
+      - id: digests
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          wheel=$(sha256sum "dist/revision_engine-$VERSION-py3-none-any.whl")
+          sdist=$(sha256sum "dist/revision_engine-$VERSION.tar.gz")
+          echo "wheel=${wheel%% *}" >> "$GITHUB_OUTPUT"
+          echo "sdist=${sdist%% *}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -143,8 +154,9 @@ jobs:
           done
           cd "$RUNNER_TEMP"
           test "$("$RUNNER_TEMP/smoke/bin/rv2" --version)" = "rv2 $VERSION"
+  # Uploads only the files dist hashed: code that smoke ran from TestPyPI must not choose them.
   pypi:
-    needs: smoke
+    needs: [release, dist, smoke]
     runs-on: ubuntu-24.04
     environment: pypi
     permissions:
@@ -154,4 +166,11 @@ jobs:
         with:
           name: dist
           path: dist/
+      - env:
+          VERSION: ${{ needs.release.outputs.version }}
+          WHEEL_SHA256: ${{ needs.dist.outputs.wheel-sha256 }}
+          SDIST_SHA256: ${{ needs.dist.outputs.sdist-sha256 }}
+        run: |
+          test "$(ls -A dist | wc -l)" = 2
+          printf '%s  %s\n' "$WHEEL_SHA256" "dist/revision_engine-$VERSION-py3-none-any.whl" "$SDIST_SHA256" "dist/revision_engine-$VERSION.tar.gz" | sha256sum --strict -c
       - uses: pypa/gh-action-pypi-publish@release/v1

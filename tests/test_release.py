@@ -530,7 +530,8 @@ def test_upload_chain_order():
     assert _needs(jobs["testpypi"]) == ["dist"]
     assert set(_needs(jobs["smoke"])) == {"release", "testpypi"}
     assert len(_needs(jobs["smoke"])) == 2
-    assert _needs(jobs["pypi"]) == ["smoke"]
+    assert set(_needs(jobs["pypi"])) == {"release", "dist", "smoke"}
+    assert len(_needs(jobs["pypi"])) == 3
     assert {"test", "browsers", "release", "dist", "testpypi", "smoke"} <= _needs_closure(
         jobs, "pypi"
     )
@@ -561,16 +562,52 @@ def test_dist_builds_the_tag_and_checks_it():
 @pytest.mark.parametrize("name", ["testpypi", "pypi"])
 def test_upload_jobs_run_no_repository_code(name):
     job = _workflow()["jobs"][name]
-    prefixes = [s["uses"].split("@")[0] + "@" for s in job["steps"]]
+    # pypi's one run step is the digest check, which runs only coreutils.
+    steps = [s for s in job["steps"] if not (name == "pypi" and s is _digest_check(job))]
+    prefixes = [s["uses"].split("@")[0] + "@" for s in steps]
     assert prefixes == ["actions/download-artifact@", "pypa/gh-action-pypi-publish@"]
-    assert [s for s in job["steps"] if "run" in s] == []
+    assert [s for s in steps if "run" in s] == []
     assert job["environment"] == name
-    publish = job["steps"][1].get("with", {})
+    publish = steps[1].get("with", {})
     assert "skip-existing" not in publish
     if name == "testpypi":
         assert publish == {"repository-url": "https://test.pypi.org/legacy/"}
     else:
         assert "repository-url" not in publish
+
+
+def _digest_check(job: dict) -> dict:
+    (step,) = [s for s in job["steps"] if "run" in s]
+    return step
+
+
+def test_pypi_publishes_only_the_files_dist_hashed():
+    # smoke runs code from TestPyPI; the files pypi uploads must be the ones dist built.
+    jobs = _workflow()["jobs"]
+    dist = jobs["dist"]
+    assert dist["outputs"] == {
+        "wheel-sha256": "${{ steps.digests.outputs.wheel }}",
+        "sdist-sha256": "${{ steps.digests.outputs.sdist }}",
+    }
+    ids = [s.get("id") for s in dist["steps"]]
+    upload = next(
+        i for i, s in enumerate(dist["steps"]) if s.get("uses", "").startswith("actions/upload")
+    )
+    assert ids.index("digests") < upload
+    digests = dist["steps"][ids.index("digests")]
+    assert "sha256sum" in digests["run"] and "GITHUB_OUTPUT" in digests["run"]
+    steps = jobs["pypi"]["steps"]
+    check = _digest_check(jobs["pypi"])
+    assert check["env"] == {
+        "VERSION": VERSION_OUT,
+        "WHEEL_SHA256": "${{ needs.dist.outputs.wheel-sha256 }}",
+        "SDIST_SHA256": "${{ needs.dist.outputs.sdist-sha256 }}",
+    }
+    tokens = _tokens(check["run"])
+    assert {"sha256sum", "--strict", "-c"} <= set(tokens)
+    assert "python" not in check["run"]
+    order = [s.get("uses", "run").split("@")[0] for s in steps]
+    assert order == ["actions/download-artifact", "run", "pypa/gh-action-pypi-publish"]
 
 
 def test_jobs_running_third_party_code_drop_checkout_credentials():

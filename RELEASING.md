@@ -53,7 +53,7 @@ Maintainer actions outside the repository, done once before the first upload:
    - **The job failed because the tag already tags another commit:** if you placed that tag by hand with the fallback, nothing is wrong; finish with step 5: the release if it is missing, and the upload if the version is not on PyPI ([Checking a release](#checking-a-release)). Otherwise the version on `main` is wrong: fix it in a new PR. Never move or re-create the tag.
    - **Any other failure:** use the fallback.
 
-   After `release`, the jobs `dist` → `testpypi` → `smoke` → `pypi` build from the tag and upload. `dist` builds the sdist and wheel from `vX.Y.Z` and stops before any upload when the built version is not exactly `X.Y.Z`. `testpypi` uploads both files to TestPyPI. `smoke` installs `revision-engine==X.Y.Z` from TestPyPI in a fresh venv and requires `rv2 --version` to print `rv2 X.Y.Z`. `pypi` uploads the same files to PyPI, and runs only if `smoke` passed. A version can never be uploaded twice to either index.
+   After `release`, the jobs `dist` → `testpypi` → `smoke` → `pypi` build from the tag and upload. `dist` builds the sdist and wheel from `vX.Y.Z` and stops before any upload when the built version is not exactly `X.Y.Z`. `testpypi` uploads both files to TestPyPI. `smoke` installs `revision-engine==X.Y.Z` from TestPyPI in a fresh venv and requires `rv2 --version` to print `rv2 X.Y.Z`. `pypi` uploads the same files to PyPI, and runs only if `smoke` passed. It first checks the files' sha256 digests against the ones `dist` recorded, because `smoke` runs code from TestPyPI. A version can never be uploaded twice to either index.
 
    - **`testpypi` or `pypi` failed with an OIDC or "publisher" error:** the [one-time setup](#one-time-setup) is missing or wrong. Fix it, then re-run the run's failed jobs.
    - **An upload failed because a file already exists:** if only one of the two files reached that index, upload the other by hand (step 5). Never re-upload a file that is already there.
@@ -85,7 +85,7 @@ Maintainer actions outside the repository, done once before the first upload:
 
    Keep `notes.md`, and step 6's `pr.md`, outside both checkouts so they are never committed; give their path if you run the command elsewhere.
 
-   When the upload jobs did not run (for example, the tag was placed by hand), build from the tag in a clean export and check the build, then upload to TestPyPI, run the fresh-venv check from [Checking a release](#checking-a-release) against TestPyPI (add `--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/` to its `pip install`), and upload to PyPI. Skip the TestPyPI leg only under step 4's "TestPyPI is down" bullet. The first upload needs an account-scoped API token, since no project exists yet; use project-scoped tokens after that. With `build` and `twine` installed:
+   When the upload jobs did not run (for example, the tag was placed by hand), build from the tag in a clean export and check the build, then upload to TestPyPI, run the fresh-venv check from [Checking a release](#checking-a-release) against TestPyPI, and upload to PyPI. For the TestPyPI check, take no dependency from TestPyPI, where anyone can upload anything: in the fresh venv, first `pip install -c ci-constraints-requirements.txt pyyaml pygments jinja2 markdown-it-py` from PyPI, then `pip install --no-deps --index-url https://test.pypi.org/simple/ revision-engine==X.Y.Z`. Skip the TestPyPI leg only under step 4's "TestPyPI is down" bullet. The first upload needs an account-scoped API token, since no project exists yet; use project-scoped tokens after that. With `build` and `twine` installed:
 
    ```bash
    mkdir <dir> && git archive vX.Y.Z | tar -x -C <dir> && cd <dir>
@@ -110,13 +110,13 @@ Maintainer actions outside the repository, done once before the first upload:
 
 ## Checking a release
 
-The tag is on the remote when the first command exits 0; exit 2 means it is absent. The GitHub release exists when the second exits 0; exit 1 means it is absent. The version is on PyPI when the third prints `200`, and absent when it prints `404`; anything else (a 5xx, or no code) is undetermined, so run it again. The fourth checks TestPyPI the same way.
+The tag is on the remote when the first command exits 0; exit 2 means it is absent. The GitHub release exists when the second exits 0; exit 1 means it is absent. The version is on PyPI when the third exits 0 and prints `200`, and absent when it exits 22 and prints `404`; anything else (a 5xx, or `000` when there is no connection) is undetermined, so run it again. The fourth checks TestPyPI the same way.
 
 ```bash
 git ls-remote --exit-code --tags origin refs/tags/vX.Y.Z
 gh release view vX.Y.Z -R mtibbits/reVision
-curl -sS -o /dev/null -w '%{http_code}\n' https://pypi.org/pypi/revision-engine/X.Y.Z/json
-curl -sS -o /dev/null -w '%{http_code}\n' https://test.pypi.org/pypi/revision-engine/X.Y.Z/json
+curl -fsS -o /dev/null -w '%{http_code}\n' https://pypi.org/pypi/revision-engine/X.Y.Z/json
+curl -fsS -o /dev/null -w '%{http_code}\n' https://test.pypi.org/pypi/revision-engine/X.Y.Z/json
 ```
 
 To check that the release installs, use a fresh venv outside any checkout. `rv2 --version` prints `rv2 X.Y.Z`. On Windows the paths are `<dir>\Scripts\python` and `<dir>\Scripts\rv2`:
