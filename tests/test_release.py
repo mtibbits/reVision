@@ -16,6 +16,7 @@ import pytest
 import yaml
 
 from tests.ci_pins import ROOT
+from tests.test_ci_constraints import _tokens
 from tests.test_release_doc import INSTALL_RE
 from tools.release import (
     INSTALL_BLOCK,
@@ -487,18 +488,113 @@ def test_needs_rule_allows_a_downstream_job():
     assert _upstream(jobs) == {"test", "browsers"}
 
 
-def test_only_release_job_can_write():
+def test_only_release_and_upload_jobs_hold_permissions():
     workflow = _workflow()
     assert workflow["permissions"] == {"contents": "read"}
     jobs = workflow["jobs"]
     assert jobs["release"]["permissions"] == {"contents": "write", "pull-requests": "read"}
-    assert [n for n in jobs if n != "release" and "permissions" in jobs[n]] == []
+    assert jobs["testpypi"]["permissions"] == {"id-token": "write"}
+    assert jobs["pypi"]["permissions"] == {"id-token": "write"}
+    assert {n for n in jobs if "permissions" in jobs[n]} == {"release", "testpypi", "pypi"}
 
 
-def test_release_job_interpolates_nothing_into_shell():
-    runs = _release_runs()
-    assert runs
-    assert [run for run in runs if "${{" in run] == []
+def _runs(job: dict) -> list[str]:
+    return [step["run"] for step in job["steps"] if "run" in step]
+
+
+def test_release_path_interpolates_nothing_into_shell():
+    jobs = _workflow()["jobs"]
+    path = ["release"] + [n for n in jobs if "release" in _needs_closure(jobs, n)]
+    for name in ("release", "dist", "smoke"):
+        assert name in path and _runs(jobs[name]), name
+    assert [(n, run) for n in path for run in _runs(jobs[n]) if "${{" in run] == []
+
+
+VERSION_OUT = "${{ needs.release.outputs.version }}"
+UPLOAD_JOBS = ["dist", "testpypi", "smoke", "pypi"]
+
+
+def _step(job: dict, prefix: str) -> dict:
+    return next(s for s in job["steps"] if s.get("uses", "").startswith(prefix))
+
+
+def test_release_job_outputs_the_version():
+    assert _workflow()["jobs"]["release"]["outputs"] == {
+        "version": "${{ steps.decide.outputs.version }}"
+    }
+
+
+def test_upload_chain_order():
+    jobs = _workflow()["jobs"]
+    assert _needs(jobs["dist"]) == ["release"]
+    assert _needs(jobs["testpypi"]) == ["dist"]
+    assert set(_needs(jobs["smoke"])) == {"release", "testpypi"}
+    assert len(_needs(jobs["smoke"])) == 2
+    assert _needs(jobs["pypi"]) == ["smoke"]
+    assert {"test", "browsers", "release", "dist", "testpypi", "smoke"} <= _needs_closure(
+        jobs, "pypi"
+    )
+    assert [n for n in jobs if "pypi" in _needs_closure(jobs, n)] == []
+
+
+def test_dist_runs_only_for_a_release_version():
+    assert _workflow()["jobs"]["dist"]["if"] == "needs.release.outputs.version != ''"
+
+
+def test_dist_builds_the_tag_and_checks_it():
+    job = _workflow()["jobs"]["dist"]
+    assert _step(job, "actions/checkout@")["with"]["ref"] == f"refs/tags/v{VERSION_OUT}"
+    steps = job["steps"]
+    build = next(i for i, s in enumerate(steps) if s.get("run") == "python -m build")
+    check = next(
+        i
+        for i, s in enumerate(steps)
+        if s.get("run") == 'python tools/release.py dist --version "$VERSION" --dir dist'
+    )
+    upload = next(
+        i for i, s in enumerate(steps) if s.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    assert build < check < upload
+    assert steps[check]["env"] == {"VERSION": VERSION_OUT}
+
+
+@pytest.mark.parametrize("name", ["testpypi", "pypi"])
+def test_upload_jobs_run_no_repository_code(name):
+    job = _workflow()["jobs"][name]
+    prefixes = [s["uses"].split("@")[0] + "@" for s in job["steps"]]
+    assert prefixes == ["actions/download-artifact@", "pypa/gh-action-pypi-publish@"]
+    assert [s for s in job["steps"] if "run" in s] == []
+    assert job["environment"] == name
+    publish = job["steps"][1].get("with", {})
+    assert "skip-existing" not in publish
+    if name == "testpypi":
+        assert publish == {"repository-url": "https://test.pypi.org/legacy/"}
+    else:
+        assert "repository-url" not in publish
+
+
+def test_jobs_running_third_party_code_drop_checkout_credentials():
+    jobs = _workflow()["jobs"]
+    for name in ("dist", "smoke"):
+        assert _step(jobs[name], "actions/checkout@")["with"]["persist-credentials"] is False
+    assert _step(jobs["dist"], "actions/upload-artifact@")["with"]["overwrite"] is True
+
+
+def test_upload_jobs_run_on_linux():
+    jobs = _workflow()["jobs"]
+    assert {n: jobs[n]["runs-on"] for n in UPLOAD_JOBS} == dict.fromkeys(UPLOAD_JOBS, "ubuntu-24.04")
+
+
+def test_smoke_installs_the_testpypi_build():
+    job = _workflow()["jobs"]["smoke"]
+    assert "permissions" not in job
+    (run,) = _runs(job)
+    tokens = _tokens(run)
+    pairs = set(zip(tokens, tokens[1:]))
+    assert ("--index-url", "https://test.pypi.org/simple/") in pairs
+    assert ("--extra-index-url", "https://pypi.org/simple/") in pairs
+    assert "revision-engine==$VERSION" in tokens
+    assert '--version)" = "rv2 $VERSION"' in run
 
 
 def test_release_job_fetches_full_history():
