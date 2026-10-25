@@ -138,6 +138,7 @@ def test_deploy_runs_the_strict_check_before_building():
     assert label, "README ## Deploy has no 'GitLab CI:' recipe"
     for platform, part in (("GitHub Actions", github), ("GitLab CI", gitlab)):
         assert "rv2 check --strict" in part, f"README ## Deploy: {platform} recipe does not run rv2 check --strict"
+        assert "rv2 build" in part, f"README ## Deploy: {platform} recipe does not run rv2 build"
         assert part.index("rv2 check --strict") < part.index("rv2 build"), (
             f"README ## Deploy: {platform} recipe runs rv2 build before rv2 check --strict"
         )

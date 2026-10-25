@@ -85,7 +85,7 @@ Piper is unavailable.
 
 ## Deploy
 
-<!-- tests/test_release_doc.py checks that each platform's recipe below runs the strict check before building. -->
+<!-- tests/test_release_doc.py::test_deploy_runs_the_strict_check_before_building checks that each platform's recipe below runs the strict check before building. -->
 GitHub Actions: install Python and Graphviz, install the engine by tag as in
 [step 1](#add-revision-to-a-repository) (pip fetches it with `git`, so the runner needs `git`),
 run `rv2 check --strict` so any warning fails the job before anything is published, then

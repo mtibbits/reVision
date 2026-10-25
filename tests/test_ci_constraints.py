@@ -147,6 +147,10 @@ def test_demo_workflow_checks_before_building():
     [check_i], [build_i] = checks, builds
     # One command only, so `|| true`, `| tee` or `;` cannot swallow the check's exit status.
     assert len(cmds[check_i]) == 1, f"{name}: the check step must run one command, not {cmds[check_i]}"
+    # `_commands` drops a trailing separator, so a backgrounding `&` needs the raw tokens.
+    lexer = shlex.shlex(steps[check_i]["run"], posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    assert not (SEPARATORS | {"&"}).intersection(lexer), f"{name}: the check step must not chain or background"
     assert check_i < build_i, f"{name}: the strict check must run before rv2 build"
     assert "continue-on-error" not in steps[check_i], f"{name}: the check step must not continue on error"
     assert "if" not in steps[check_i], f"{name}: the check step must not be conditional"
