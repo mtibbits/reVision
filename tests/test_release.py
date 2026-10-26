@@ -582,6 +582,8 @@ def test_pypi_publishes_only_the_files_dist_hashed():
     }
     tokens = _tokens(check["run"])
     assert {"sha256sum", "--strict", "-c"} <= set(tokens)
+    # sha256sum -c checks only the files it names; this stops a third file in dist/.
+    assert 'test "$(ls -A dist | wc -l)" = 2' in check["run"]
     assert "python" not in check["run"]
 
 
