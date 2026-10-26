@@ -6,13 +6,17 @@ version (tests/test_release_doc.py).
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
+import tarfile
+import zipfile
 
 import pytest
 import yaml
 
 from tests.ci_pins import ROOT
+from tests.test_ci_constraints import _has_adjacent, _tokens
 from tests.test_release_doc import INSTALL_RE
 from tools.release import (
     INSTALL_BLOCK,
@@ -20,6 +24,7 @@ from tools.release import (
     Decision,
     ReleaseError,
     annotation,
+    check_dist,
     decide,
     main,
     release_exists,
@@ -321,6 +326,107 @@ def test_cli_decide_resolves_a_short_after_sha(git_repo, tmp_path):
     assert _out(tmp_path) == "version=9.8.8\ntag=false\nrelease=true\n"
 
 
+WHEEL = "revision_engine-{v}-py3-none-any.whl"
+SDIST = "revision_engine-{v}.tar.gz"
+
+
+def _metadata(name: str, version: str) -> bytes:
+    # A non-ASCII description, as README makes it, so the reader must decode UTF-8.
+    head = f"Metadata-Version: 2.4\nName: {name}\nVersion: {version}\n"
+    return (head + "\nreVision — docs\n").encode()
+
+
+def _dist(
+    tmp_path,
+    version,
+    *,
+    name="revision-engine",
+    wheel_meta=None,
+    sdist_meta=None,
+):
+    """A dist/ directory holding a minimal wheel and sdist built for `version`."""
+    d = tmp_path / "dist"
+    d.mkdir()
+    meta = _metadata(name, version)
+    with zipfile.ZipFile(d / WHEEL.format(v=version), "w") as z:
+        if wheel_meta is not False:
+            z.writestr(f"revision_engine-{version}.dist-info/METADATA", wheel_meta or meta)
+    with tarfile.open(d / SDIST.format(v=version), "w:gz") as t:
+        data = sdist_meta or meta
+        info = tarfile.TarInfo(f"revision_engine-{version}/PKG-INFO")
+        info.size = len(data)
+        t.addfile(info, io.BytesIO(data))
+    return d
+
+
+def test_check_dist_accepts_matching_files(tmp_path):
+    d = _dist(tmp_path, "9.8.8")
+    assert check_dist(str(d), "9.8.8") == [WHEEL.format(v="9.8.8"), SDIST.format(v="9.8.8")]
+
+
+@pytest.mark.parametrize("version", ["9.8.8.dev0", "9.8.8+gabc1234", "9.8.8rc1", "9.8"])
+def test_check_dist_rejects_non_final(tmp_path, version):
+    with pytest.raises(ReleaseError, match="not a final release version"):
+        check_dist(str(tmp_path), version)
+
+
+@pytest.mark.parametrize("built", ["9.8.8.dev0", "9.8.8+gabc1234", "9.8.7"])
+def test_check_dist_rejects_another_build(tmp_path, built):
+    d = _dist(tmp_path, built)
+    with pytest.raises(ReleaseError, match=r"the build is not version 9\.8\.8") as e:
+        check_dist(str(d), "9.8.8")
+    assert f"revision_engine-{built}" in str(e.value)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda d: (d / "revision_engine-9.8.8-py3-none-any.whl.asc").write_bytes(b""),
+        lambda d: (d / SDIST.format(v="9.8.8")).unlink(),
+    ],
+    ids=["extra-file", "missing-sdist"],
+)
+def test_check_dist_rejects_other_files(tmp_path, change):
+    d = _dist(tmp_path, "9.8.8")
+    change(d)
+    with pytest.raises(ReleaseError, match="expected"):
+        check_dist(str(d), "9.8.8")
+
+
+@pytest.mark.parametrize("kind", ["wheel", "sdist"])
+def test_check_dist_rejects_metadata_version(tmp_path, kind):
+    wrong = _metadata("revision-engine", "9.8.7")
+    d = _dist(tmp_path, "9.8.8", **{f"{kind}_meta": wrong})
+    with pytest.raises(ReleaseError, match=r"declares Version '9\.8\.7', expected '9\.8\.8'"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_check_dist_rejects_metadata_name(tmp_path):
+    d = _dist(tmp_path, "9.8.8", name="revision-engine-x")
+    with pytest.raises(ReleaseError, match="declares Name"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_check_dist_rejects_missing_member(tmp_path):
+    d = _dist(tmp_path, "9.8.8", wheel_meta=False)
+    with pytest.raises(ReleaseError, match=r"has no revision_engine-9\.8\.8\.dist-info/METADATA"):
+        check_dist(str(d), "9.8.8")
+
+
+def test_cli_dist_ok(tmp_path, capsys):
+    d = _dist(tmp_path, "9.8.8")
+    assert main(["dist", "--version", "9.8.8", "--dir", str(d)]) == 0
+    assert capsys.readouterr().out == (
+        "checked revision_engine-9.8.8-py3-none-any.whl\nchecked revision_engine-9.8.8.tar.gz\n"
+    )
+
+
+def test_cli_dist_error_goes_to_stderr(tmp_path, capsys):
+    d = _dist(tmp_path, "9.8.7")
+    assert main(["dist", "--version", "9.8.8", "--dir", str(d)]) == 1
+    assert capsys.readouterr().err.startswith("::error::")
+
+
 WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
 
 
@@ -350,10 +456,6 @@ def _upstream(jobs: dict) -> set[str]:
     return {n for n in jobs if n != "release" and "release" not in _needs_closure(jobs, n)}
 
 
-def _release_runs() -> list[str]:
-    return [step["run"] for step in _workflow()["jobs"]["release"]["steps"] if "run" in step]
-
-
 def test_release_job_runs_only_for_pushes_to_main_here():
     condition = _workflow()["jobs"]["release"]["if"]
     assert "github.event_name == 'push'" in condition
@@ -373,18 +475,140 @@ def test_needs_rule_allows_a_downstream_job():
     assert _upstream(jobs) == {"test", "browsers"}
 
 
-def test_only_release_job_can_write():
+def test_only_release_and_upload_jobs_hold_permissions():
     workflow = _workflow()
     assert workflow["permissions"] == {"contents": "read"}
     jobs = workflow["jobs"]
     assert jobs["release"]["permissions"] == {"contents": "write", "pull-requests": "read"}
-    assert [n for n in jobs if n != "release" and "permissions" in jobs[n]] == []
+    assert jobs["testpypi"]["permissions"] == {"id-token": "write"}
+    assert jobs["pypi"]["permissions"] == {"id-token": "write"}
+    assert {n for n in jobs if "permissions" in jobs[n]} == {"release", "testpypi", "pypi"}
 
 
-def test_release_job_interpolates_nothing_into_shell():
-    runs = _release_runs()
-    assert runs
-    assert [run for run in runs if "${{" in run] == []
+def _runs(job: dict) -> list[str]:
+    return [step["run"] for step in job["steps"] if "run" in step]
+
+
+def test_release_path_interpolates_nothing_into_shell():
+    jobs = _workflow()["jobs"]
+    path = ["release"] + [n for n in jobs if "release" in _needs_closure(jobs, n)]
+    for name in ("release", "dist", "smoke"):
+        assert name in path and _runs(jobs[name]), name
+    assert [(n, run) for n in path for run in _runs(jobs[n]) if "${{" in run] == []
+
+
+VERSION_OUT = "${{ needs.release.outputs.version }}"
+UPLOAD_JOBS = ["dist", "testpypi", "smoke", "pypi"]
+
+
+def _step(job: dict, prefix: str) -> dict:
+    return next(s for s in job["steps"] if s.get("uses", "").startswith(prefix))
+
+
+def test_release_job_outputs_the_version():
+    assert _workflow()["jobs"]["release"]["outputs"] == {
+        "version": "${{ steps.decide.outputs.version }}"
+    }
+
+
+def test_upload_chain_order():
+    jobs = _workflow()["jobs"]
+    assert _needs(jobs["dist"]) == ["release"]
+    assert _needs(jobs["testpypi"]) == ["dist"]
+    assert sorted(_needs(jobs["smoke"])) == ["release", "testpypi"]
+    assert sorted(_needs(jobs["pypi"])) == ["dist", "release", "smoke"]
+    assert {"test", "browsers", "release", "dist", "testpypi", "smoke"} <= _needs_closure(
+        jobs, "pypi"
+    )
+    assert [n for n in jobs if "pypi" in _needs_closure(jobs, n)] == []
+
+
+def test_dist_runs_only_for_a_release_version():
+    assert _workflow()["jobs"]["dist"]["if"] == "needs.release.outputs.version != ''"
+
+
+def test_dist_builds_the_tag_and_checks_it():
+    job = _workflow()["jobs"]["dist"]
+    assert _step(job, "actions/checkout@")["with"]["ref"] == f"refs/tags/v{VERSION_OUT}"
+    runs = [s.get("run") for s in job["steps"]]
+    build = runs.index("python -m build")
+    check = runs.index('python tools/release.py dist --version "$VERSION" --dir dist')
+    assert build < check < job["steps"].index(_step(job, "actions/upload-artifact@"))
+    assert job["steps"][check]["env"] == {"VERSION": VERSION_OUT}
+
+
+# pypi's one run step is the digest check, which runs only coreutils.
+@pytest.mark.parametrize(
+    "name, order",
+    [
+        ("testpypi", ["actions/download-artifact", "pypa/gh-action-pypi-publish"]),
+        ("pypi", ["actions/download-artifact", "run", "pypa/gh-action-pypi-publish"]),
+    ],
+)
+def test_upload_jobs_run_no_repository_code(name, order):
+    job = _workflow()["jobs"][name]
+    assert [s.get("uses", "run").split("@")[0] for s in job["steps"]] == order
+    assert job["environment"] == name
+    publish = job["steps"][-1].get("with", {})
+    assert "skip-existing" not in publish
+    if name == "testpypi":
+        assert publish == {"repository-url": "https://test.pypi.org/legacy/"}
+    else:
+        assert "repository-url" not in publish
+
+
+def _digest_check(job: dict) -> dict:
+    (step,) = [s for s in job["steps"] if "run" in s]
+    return step
+
+
+def test_pypi_publishes_only_the_files_dist_hashed():
+    # smoke runs code from TestPyPI; the files pypi uploads must be the ones dist built.
+    jobs = _workflow()["jobs"]
+    dist = jobs["dist"]
+    assert dist["outputs"] == {
+        "wheel-sha256": "${{ steps.digests.outputs.wheel }}",
+        "sdist-sha256": "${{ steps.digests.outputs.sdist }}",
+    }
+    ids = [s.get("id") for s in dist["steps"]]
+    assert ids.index("digests") < dist["steps"].index(_step(dist, "actions/upload-artifact@"))
+    digests = dist["steps"][ids.index("digests")]
+    assert "sha256sum" in digests["run"] and "GITHUB_OUTPUT" in digests["run"]
+    check = _digest_check(jobs["pypi"])
+    assert check["env"] == {
+        "VERSION": VERSION_OUT,
+        "WHEEL_SHA256": "${{ needs.dist.outputs.wheel-sha256 }}",
+        "SDIST_SHA256": "${{ needs.dist.outputs.sdist-sha256 }}",
+    }
+    tokens = _tokens(check["run"])
+    assert {"sha256sum", "--strict", "-c"} <= set(tokens)
+    # sha256sum -c checks only the files it names; this stops a third file in dist/.
+    assert 'test "$(ls -A dist | wc -l)" = 2' in check["run"]
+    assert "python" not in check["run"]
+
+
+def test_jobs_running_third_party_code_drop_checkout_credentials():
+    jobs = _workflow()["jobs"]
+    for name in ("dist", "smoke"):
+        assert _step(jobs[name], "actions/checkout@")["with"]["persist-credentials"] is False
+    assert _step(jobs["dist"], "actions/upload-artifact@")["with"]["overwrite"] is True
+
+
+def test_upload_jobs_run_on_linux():
+    jobs = _workflow()["jobs"]
+    assert {n: jobs[n]["runs-on"] for n in UPLOAD_JOBS} == dict.fromkeys(UPLOAD_JOBS, "ubuntu-24.04")
+
+
+def test_smoke_installs_the_testpypi_build():
+    job = _workflow()["jobs"]["smoke"]
+    assert "permissions" not in job
+    (run,) = _runs(job)
+    tokens = _tokens(run)
+    assert _has_adjacent(tokens, "--index-url", "https://test.pypi.org/simple/")
+    assert _has_adjacent(tokens, "--extra-index-url", "https://pypi.org/simple/")
+    assert "revision-engine==$VERSION" in tokens
+    assert 'out=$("$RUNNER_TEMP/smoke/bin/rv2" --version)' in run
+    assert 'test "$out" = "rv2 $VERSION"' in run
 
 
 def test_release_job_fetches_full_history():
@@ -394,7 +618,7 @@ def test_release_job_fetches_full_history():
 
 
 def test_release_job_tag_message_and_title():
-    runs = _release_runs()
+    runs = _runs(_workflow()["jobs"]["release"])
     tag = next(run for run in runs if "git" in run and " tag -a " in run)
     create = next(run for run in runs if "gh release create" in run)
     assert '-m "reVision engine v$VERSION"' in tag

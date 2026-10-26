@@ -1,6 +1,6 @@
-"""Decide whether a push to main tags and releases the engine, and build the release notes.
+"""Decide whether a push to main releases the engine, build the release notes, check the build.
 
-CI's release job (.github/workflows/test.yml) calls this as a CLI; RELEASING.md step 4
+CI's release and dist jobs (.github/workflows/test.yml) call this as a CLI; RELEASING.md step 4
 describes it. Every decision lives here, so unit tests cover it. Stdlib only: the job runs it
 without installing anything.
 """
@@ -13,9 +13,12 @@ import os
 import re
 import subprocess
 import sys
+import tarfile
 import tomllib
+import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
+from email.parser import HeaderParser
 
 # A final release: three canonical numbers, used with fullmatch. Anything else (.devN, rcN,
 # .postN, +local, two or four parts, leading zeros) is not a release.
@@ -162,6 +165,59 @@ def release_notes(body: str | None, version: str, number: int) -> str:
     return text + "\n\n" + INSTALL_BLOCK.format(version=version)
 
 
+def _member(path: str, name: str) -> bytes | None:
+    """One member of a wheel (zip) or sdist (tar.gz), or None when it is absent."""
+    if path.endswith(".whl"):
+        with zipfile.ZipFile(path) as z:
+            try:
+                return z.read(name)
+            except KeyError:
+                return None
+    with tarfile.open(path, "r:gz") as t:
+        try:
+            f = t.extractfile(name)
+        except KeyError:
+            return None
+        return f.read() if f else None
+
+
+def check_dist(directory: str, version: str) -> list[str]:
+    """Check that `directory` holds exactly the wheel and sdist of `version`, named and declared.
+
+    Returns the checked file names, wheel first. Runs before any upload, so every message says
+    that nothing was uploaded.
+    """
+    if not FINAL_RE.fullmatch(version):
+        raise ReleaseError(
+            f"{version} is not a final release version (X.Y.Z); only final releases go to "
+            "PyPI. Nothing was uploaded."
+        )
+    # Each distribution, wheel first, and the member that declares its name and version.
+    stem = f"revision_engine-{version}"
+    members = {
+        f"{stem}-py3-none-any.whl": f"{stem}.dist-info/METADATA",
+        f"{stem}.tar.gz": f"{stem}/PKG-INFO",
+    }
+    found = set(os.listdir(directory))
+    if found != set(members):
+        raise ReleaseError(
+            f"{directory} holds {sorted(found)}, expected {sorted(members)}: the build is not "
+            f"version {version}; check pyproject.toml at tag v{version}. Nothing was uploaded."
+        )
+    for file, member in members.items():
+        data = _member(os.path.join(directory, file), member)
+        if data is None:
+            raise ReleaseError(f"{file} has no {member}. Nothing was uploaded.")
+        headers = HeaderParser().parsestr(data.decode("utf-8"))
+        for field, want in (("Name", "revision-engine"), ("Version", version)):
+            got = headers.get(field)
+            if got != want:
+                raise ReleaseError(
+                    f"{file} declares {field} {got!r}, expected {want!r}. Nothing was uploaded."
+                )
+    return list(members)
+
+
 def annotation(message: str) -> str:
     """A GitHub Actions error annotation, escaped so the whole message stays on one line."""
     escaped = message.strip().replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
@@ -239,6 +295,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--version", required=True)
     p.add_argument("--sha", required=True)
     p.add_argument("--pulls", required=True, help="output of gh api commits/{sha}/pulls")
+    p = commands.add_parser("dist", help="check the built distributions before upload")
+    p.add_argument("--version", required=True)
+    p.add_argument("--dir", required=True, help="the directory python -m build wrote")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -249,6 +308,9 @@ def main(argv: list[str] | None = None) -> int:
             _emit({"version": d.version or "", "tag": _flag(d.tag), "release": _flag(d.release)})
         elif args.command == "exists":
             _emit({"exists": _flag(release_exists(_load(args.releases), args.version))})
+        elif args.command == "dist":
+            for name in check_dist(args.dir, args.version):
+                print(f"checked {name}")
         else:
             pull = release_pull(_load(args.pulls), args.sha)
             sys.stdout.write(release_notes(pull["body"], args.version, pull["number"]))

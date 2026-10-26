@@ -36,11 +36,14 @@ jobs:
       - run: python -m playwright --version
       - run: python -m pytest -vv -rxXfE tests/browser --browser ${{ matrix.browser }}
   # Tags and releases a merged version bump (RELEASING.md step 4). A job here, not a
-  # workflow_run workflow, so it sees the push's `before` and runs only after every job passes.
+  # workflow_run workflow, so it sees the push's `before` and runs only after the `test` and
+  # `browsers` jobs pass; the upload jobs below run after it.
   release:
     needs: [test, browsers]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'mtibbits/reVision'
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
     permissions:
       contents: write
       pull-requests: read
@@ -77,3 +80,99 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" > "$RUNNER_TEMP/pulls.json"
           python tools/release.py notes --version "$VERSION" --sha "$GITHUB_SHA" --pulls "$RUNNER_TEMP/pulls.json" > "$RUNNER_TEMP/notes.md"
           gh release create "v$VERSION" -R "$GITHUB_REPOSITORY" --verify-tag --title "reVision engine v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+  # Upload the release (RELEASING.md step 4). Jobs here, not a tag-triggered workflow: the
+  # release job's tag push uses GITHUB_TOKEN, which starts no workflow.
+  dist:
+    needs: release
+    if: needs.release.outputs.version != ''
+    runs-on: ubuntu-24.04
+    outputs:
+      wheel-sha256: ${{ steps.digests.outputs.wheel }}
+      sdist-sha256: ${{ steps.digests.outputs.sdist }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ needs.release.outputs.version }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build -c ci-constraints-requirements.txt
+      - run: python -m build
+      - env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: python tools/release.py dist --version "$VERSION" --dir dist
+      - id: digests
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          wheel=$(sha256sum "dist/revision_engine-$VERSION-py3-none-any.whl")
+          sdist=$(sha256sum "dist/revision_engine-$VERSION.tar.gz")
+          echo "wheel=${wheel%% *}" >> "$GITHUB_OUTPUT"
+          echo "sdist=${sdist%% *}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          overwrite: true
+  testpypi:
+    needs: dist
+    runs-on: ubuntu-24.04
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+  # No token here: --extra-index-url lets TestPyPI, where anyone can upload anything, supply a
+  # dependency, so code from this install never runs where an id-token can be minted.
+  smoke:
+    needs: [release, testpypi]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ needs.release.outputs.version }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          python -m venv "$RUNNER_TEMP/smoke"
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            "$RUNNER_TEMP/smoke/bin/python" -m pip install --no-cache-dir --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ -c ci-constraints-requirements.txt "revision-engine==$VERSION" && break
+            if [ "$attempt" = 10 ]; then exit 1; fi
+            sleep 30
+          done
+          cd "$RUNNER_TEMP"
+          out=$("$RUNNER_TEMP/smoke/bin/rv2" --version)
+          echo "$out"
+          test "$out" = "rv2 $VERSION"
+  # Uploads only the files dist hashed: code that smoke ran from TestPyPI must not choose them.
+  pypi:
+    needs: [release, dist, smoke]
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - env:
+          VERSION: ${{ needs.release.outputs.version }}
+          WHEEL_SHA256: ${{ needs.dist.outputs.wheel-sha256 }}
+          SDIST_SHA256: ${{ needs.dist.outputs.sdist-sha256 }}
+        run: |
+          test "$(ls -A dist | wc -l)" = 2
+          printf '%s  %s\n' "$WHEEL_SHA256" "dist/revision_engine-$VERSION-py3-none-any.whl" "$SDIST_SHA256" "dist/revision_engine-$VERSION.tar.gz" | sha256sum --strict -c
+      - uses: pypa/gh-action-pypi-publish@release/v1

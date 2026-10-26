@@ -10,9 +10,9 @@ Revision control, revisited.
 
 ## Add reVision to a repository
 
-1. Install the engine. Until it is on PyPI, pin a release tag:
-   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.2.0"`.
-   Graphviz (`dot`) must be on the PATH for diagrams, and `git` for the tagged install.
+1. Install the engine: `pip install revision-engine`. To pin a release tag instead:
+   `pip install "revision-engine @ git+https://github.com/mtibbits/reVision@v0.2.1"`, which needs `git`.
+   Graphviz (`dot`) must be on the PATH for diagrams.
 2. Create `revision.yaml` at the repository root:
    ```yaml
    site: { title: My project by example, base_url: "" }
@@ -86,9 +86,8 @@ Piper is unavailable.
 ## Deploy
 
 <!-- tests/test_release_doc.py::test_deploy_runs_the_strict_check_before_building checks that each platform's recipe below runs the strict check before building. -->
-GitHub Actions: install Python and Graphviz, install the engine by tag as in
-[step 1](#add-revision-to-a-repository) (pip fetches it with `git`, so the runner needs `git`),
-run `rv2 check --strict` so any warning fails the job before anything is published, then
+GitHub Actions: install Python and Graphviz, install the engine as in
+[step 1](#add-revision-to-a-repository), run `rv2 check --strict` so any warning fails the job before anything is published, then
 `rv2 build`, and upload `public/` with `actions/upload-pages-artifact`. GitLab CI: install Python,
 Graphviz and the engine the same way and run `rv2 check --strict`, then `rv2 build`, in a `pages`
 job with `public/` as its artifact, on an image that has `git`.
@@ -106,11 +105,11 @@ python -m pytest tests/browser --browser firefox --browser webkit
 
 The golden test compares the built example site byte-for-byte, except that each diagram is reduced to its nodes (ids, anchor stamps, labels) and edges (endpoints, labels), so Graphviz layout and fonts do not matter.
 That reduction was verified identical on Graphviz 16.1.0 (Windows) and on Ubuntu 22.04's `graphviz` 2.42.2 package (which reports itself as 2.43.0); a Graphviz that changes node ids, anchor stamps, edges, or node and edge labels fails the test (graph and cluster labels and link targets are not compared).
-CI runs on the pinned `ubuntu-24.04` image and installs its `graphviz` package (2.42.2). Its `test` job sets `RV_REQUIRE_GOLDEN=1` and runs the whole suite in Chromium, so a skipped or missing golden test fails the job; the gate's message is the last line of the log. A separate `browsers` job runs `tests/browser` in Firefox and WebKit without the golden gate; a test that cannot pass in one engine carries `@pytest.mark.xfail_browser(...)` naming its tracking issue, and is a strict xfail there. On a push to `main` that bumps the version, a `release` job tags and releases it after both pass; see RELEASING.md step 4.
+CI runs on the pinned `ubuntu-24.04` image and installs its `graphviz` package (2.42.2). Its `test` job sets `RV_REQUIRE_GOLDEN=1` and runs the whole suite in Chromium, so a skipped or missing golden test fails the job; the gate's message is the last line of the log. A separate `browsers` job runs `tests/browser` in Firefox and WebKit without the golden gate; a test that cannot pass in one engine carries `@pytest.mark.xfail_browser(...)` naming its tracking issue, and is a strict xfail there. On a push to `main` that bumps the version, a `release` job tags and releases it after both pass, and later jobs upload it to TestPyPI, install it from there, and upload it to PyPI; see RELEASING.md step 4.
 <!-- tests/test_ci_constraints.py checks that every README line installing .[dev], here and in the fence above, contains INSTALL_CMD from tests/ci_pins.py. -->
 CI installs the runtime dependencies whose output the golden test hashes (Pygments, markdown-it-py, Jinja2, PyYAML and their dependencies) at the versions pinned in `ci-constraints-requirements.txt`; `pyproject.toml` keeps floors only, so installing the engine in a content repository is unaffected. To match CI locally, run `python -m pip install -e ".[dev]" -c ci-constraints-requirements.txt`; after an intentional rendering change, regenerate with `RV_UPDATE_GOLDEN=1 python -m pytest tests/test_golden.py`. `.github/dependabot.yml` asks Dependabot to propose pin bumps; a bump that changes output reddens the golden test on its own PR, where the manifest is regenerated after review.
 
-To cut a release, follow [RELEASING.md](RELEASING.md).
+To cut a release, follow [RELEASING.md](https://github.com/mtibbits/reVision/blob/main/RELEASING.md).
 
 ## License
 
