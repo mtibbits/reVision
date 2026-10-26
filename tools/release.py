@@ -1,6 +1,6 @@
 """Decide whether a push to main releases the engine, build the release notes, check the build.
 
-CI's release job (.github/workflows/test.yml) calls this as a CLI; RELEASING.md step 4
+CI's release and dist jobs (.github/workflows/test.yml) call this as a CLI; RELEASING.md step 4
 describes it. Every decision lives here, so unit tests cover it. Stdlib only: the job runs it
 without installing anything.
 """

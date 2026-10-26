@@ -605,7 +605,8 @@ def test_smoke_installs_the_testpypi_build():
     assert _has_adjacent(tokens, "--index-url", "https://test.pypi.org/simple/")
     assert _has_adjacent(tokens, "--extra-index-url", "https://pypi.org/simple/")
     assert "revision-engine==$VERSION" in tokens
-    assert '--version)" = "rv2 $VERSION"' in run
+    assert 'out=$("$RUNNER_TEMP/smoke/bin/rv2" --version)' in run
+    assert 'test "$out" = "rv2 $VERSION"' in run
 
 
 def test_release_job_fetches_full_history():

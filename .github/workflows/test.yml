@@ -153,7 +153,9 @@ jobs:
             sleep 30
           done
           cd "$RUNNER_TEMP"
-          test "$("$RUNNER_TEMP/smoke/bin/rv2" --version)" = "rv2 $VERSION"
+          out=$("$RUNNER_TEMP/smoke/bin/rv2" --version)
+          echo "$out"
+          test "$out" = "rv2 $VERSION"
   # Uploads only the files dist hashed: code that smoke ran from TestPyPI must not choose them.
   pypi:
     needs: [release, dist, smoke]
