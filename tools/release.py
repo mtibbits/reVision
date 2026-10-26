@@ -169,7 +169,10 @@ def _member(path: str, name: str) -> bytes | None:
     """One member of a wheel (zip) or sdist (tar.gz), or None when it is absent."""
     if path.endswith(".whl"):
         with zipfile.ZipFile(path) as z:
-            return z.read(name) if name in z.namelist() else None
+            try:
+                return z.read(name)
+            except KeyError:
+                return None
     with tarfile.open(path, "r:gz") as t:
         try:
             f = t.extractfile(name)
@@ -189,19 +192,18 @@ def check_dist(directory: str, version: str) -> list[str]:
             f"{version} is not a final release version (X.Y.Z); only final releases go to "
             "PyPI. Nothing was uploaded."
         )
-    wheel = f"revision_engine-{version}-py3-none-any.whl"
-    sdist = f"revision_engine-{version}.tar.gz"
-    expected = {wheel, sdist}
+    # Each distribution, wheel first, and the member that declares its name and version.
+    stem = f"revision_engine-{version}"
+    members = {
+        f"{stem}-py3-none-any.whl": f"{stem}.dist-info/METADATA",
+        f"{stem}.tar.gz": f"{stem}/PKG-INFO",
+    }
     found = set(os.listdir(directory))
-    if found != expected:
+    if found != set(members):
         raise ReleaseError(
-            f"{directory} holds {sorted(found)}, expected {sorted(expected)}: the build is not "
+            f"{directory} holds {sorted(found)}, expected {sorted(members)}: the build is not "
             f"version {version}; check pyproject.toml at tag v{version}. Nothing was uploaded."
         )
-    members = {
-        wheel: f"revision_engine-{version}.dist-info/METADATA",
-        sdist: f"revision_engine-{version}/PKG-INFO",
-    }
     for file, member in members.items():
         data = _member(os.path.join(directory, file), member)
         if data is None:
@@ -213,7 +215,7 @@ def check_dist(directory: str, version: str) -> list[str]:
                 raise ReleaseError(
                     f"{file} declares {field} {got!r}, expected {want!r}. Nothing was uploaded."
                 )
-    return [wheel, sdist]
+    return list(members)
 
 
 def annotation(message: str) -> str:
