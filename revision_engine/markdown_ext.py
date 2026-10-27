@@ -12,8 +12,8 @@ Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
                            plain <code>, never vendor-linked; choices are shuffled in the browser
                            unless a question sets `shuffle: false` (data-fixed-order) or has
                            two choices; any key outside _QUESTION_KEYS (or _QUIZ_KEYS, at quiz
-                           level) fails the build; a choice YAML loads as a boolean (unquoted
-                           `yes`, `on`, ...) renders as True/False with a warning
+                           level) fails the build; a choice that YAML loads as a boolean
+                           (unquoted `yes`, `on`, ...) renders as True/False with a warning
 """
 
 from __future__ import annotations
