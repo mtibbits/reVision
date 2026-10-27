@@ -380,8 +380,6 @@ def test_quiz_boolean_choices_each_warn():
 def test_quiz_boolean_choices_render_as_before():
     # The warning leaves the page as it was: byte-identical to the unwarned render.
     assert render_markdown(_quiz(BOOL_QUIZ), ctx()).html == EXPECTED_BOOL_QUIZ_HTML
-    for q, v, shown in [(0, 0, "True"), (0, 1, "False"), (0, 2, "maybe"), (1, 0, "True"), (1, 1, "False"), (1, 2, "True")]:
-        assert f'<label><input type="radio" name="q{q}" value="{v}"> {shown}</label>' in EXPECTED_BOOL_QUIZ_HTML
 
 
 def test_quiz_boolean_choice_warns_in_block_list():
@@ -400,13 +398,15 @@ def test_quiz_boolean_choice_warnings_follow_shuffle_warning():
     ]
 
 
-@pytest.mark.parametrize("written", ["'yes'", "y", "maybe", "'True'", "yEs", "5"])
-def test_quiz_non_boolean_choice_no_warning(written):
+@pytest.mark.parametrize(
+    "written, shown",
+    [("'yes'", "yes"), ("y", "y"), ("maybe", "maybe"), ("'True'", "True"), ("yEs", "yEs"), ("5", "5")],
+)
+def test_quiz_non_boolean_choice_no_warning(written, shown):
     c = ctx()
     out = render_markdown(_quiz(f"questions:\n  - q: Which?\n    choices: [a, {written}, c]\n    answer: 0\n"), c)
     assert c.report.warnings == []
-    if written == "'True'":
-        assert "> True</label>" in out.html
+    assert f"> {shown}</label>" in out.html
 
 
 def test_quiz_two_choice_threshold_matches_app_js():
@@ -553,7 +553,7 @@ def test_readme_documents_two_choice_shuffle_warning():
 
 
 def test_quiz_single_quoted_doubled_apostrophe():
-    body = "```quiz\nquestions:\n  - q: '`main` is the program''s entry?'\n    choices: ['yes', 'no']\n    answer: 0\n```\n"
+    body = _quiz("questions:\n  - q: '`main` is the program''s entry?'\n    choices: ['yes', 'no']\n    answer: 0\n")
     c = ctx()
     out = render_markdown(body, c)
     assert c.report.warnings == []

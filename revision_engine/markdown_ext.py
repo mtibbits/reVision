@@ -193,16 +193,17 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
                 f"{ctx.where}:{line}: quiz question {n} has two choices, which always keep their order; "
                 "shuffle: true has no effect"
             )
-        fixed = "" if shuffle else " data-fixed-order"
-        parts.append(f'<fieldset class="rv-q" data-answer="{answer}"{fixed}><legend>{n}. {_quiz_text(q["q"])}</legend>')
+        # #73: YAML 1.1 loads an unquoted yes/no/on/off/true/false as a bool; it still renders as True/False.
         for ci, choice in enumerate(choices):
-            # #73: YAML 1.1 loads an unquoted yes/no/on/off/true/false as a bool; it still renders as True/False.
             if isinstance(choice, bool):
                 ctx.report.warn(
                     f"{ctx.where}:{line}: quiz question {n} choice {ci + 1} shows as {choice}: YAML reads an unquoted "
                     f"yes, no, on, off, true or false as a boolean; quote the choice to show it as written, "
                     f"or write '{choice}' to keep {choice}"
                 )
+        fixed = "" if shuffle else " data-fixed-order"
+        parts.append(f'<fieldset class="rv-q" data-answer="{answer}"{fixed}><legend>{n}. {_quiz_text(q["q"])}</legend>')
+        for ci, choice in enumerate(choices):
             parts.append(f'<label><input type="radio" name="q{qi}" value="{ci}"> {_quiz_text(str(choice))}</label>')
         parts.append('<p class="rv-q-feedback" hidden></p></fieldset>')
     parts += [
