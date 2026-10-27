@@ -12,7 +12,8 @@ Extensions, all plain CommonMark syntax so other renderers degrade gracefully:
                            plain <code>, never vendor-linked; choices are shuffled in the browser
                            unless a question sets `shuffle: false` (data-fixed-order) or has
                            two choices; any key outside _QUESTION_KEYS (or _QUIZ_KEYS, at quiz
-                           level) fails the build
+                           level) fails the build; a choice YAML loads as a boolean (unquoted
+                           `yes`, `on`, ...) renders as True/False with a warning
 """
 
 from __future__ import annotations
@@ -195,6 +196,13 @@ def _quiz_html(source: str, line: int, ctx: RenderContext) -> str:
         fixed = "" if shuffle else " data-fixed-order"
         parts.append(f'<fieldset class="rv-q" data-answer="{answer}"{fixed}><legend>{n}. {_quiz_text(q["q"])}</legend>')
         for ci, choice in enumerate(choices):
+            # #73: YAML 1.1 loads an unquoted yes/no/on/off/true/false as a bool; it still renders as True/False.
+            if isinstance(choice, bool):
+                ctx.report.warn(
+                    f"{ctx.where}:{line}: quiz question {n} choice {ci + 1} shows as {choice}: YAML reads an unquoted "
+                    f"yes, no, on, off, true or false as a boolean; quote the choice to show it as written, "
+                    f"or write '{choice}' to keep {choice}"
+                )
             parts.append(f'<label><input type="radio" name="q{qi}" value="{ci}"> {_quiz_text(str(choice))}</label>')
         parts.append('<p class="rv-q-feedback" hidden></p></fieldset>')
     parts += [
