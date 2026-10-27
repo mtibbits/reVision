@@ -512,6 +512,21 @@ def test_readme_documents_quiz_shuffle():
     assert "data-fixed-order" in out.html
 
 
+def test_readme_boolean_choice_example_shows_as_written():
+    # The README's quoting example, used as written, must show yes/no and draw no warning.
+    matches = re.findall(r"`(choices: \[.*?\])`", _readme_lesson_section())
+    assert len(matches) == 1
+    c = ctx()
+    out = render_markdown(_quiz("questions:\n  - q: Ok?\n    " + matches[0] + "\n    answer: 0\n"), c)
+    assert c.report.warnings == []
+    assert "> yes</label>" in out.html
+    assert "> no</label>" in out.html
+    bullet = _readme_bullet("as a boolean")
+    for word in ["`yes`", "`no`", "`on`", "`off`", "`true`", "`false`", "`'True'`", "`'False'`"]:
+        assert word in bullet
+    assert "warning" in bullet.lower()
+
+
 def _readme_bullet(phrase: str) -> str:
     # The one lesson-section bullet containing phrase (case-insensitive).
     matches = [b for b in _readme_lesson_section().split(" - ") if phrase.lower() in b.lower()]

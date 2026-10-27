@@ -70,7 +70,10 @@ Piper is unavailable.
   or choice that starts with one (`` q: '`vaddq_f32` adds how many lanes?' ``); unquoted, the
   build fails with "quiz block is not valid YAML". Use single quotes, not double: inside double
   quotes YAML reads a backslash as an escape, so `` `\n` `` would lose its backslash. Inside single
-  quotes, write an apostrophe twice (`''`).
+  quotes, write an apostrophe twice (`''`). YAML also reads an unquoted `yes`, `no`, `on`, `off`,
+  `true` or `false` (capitalised or in capitals too) as a boolean, so the choice shows as True or
+  False and the build gives a warning. Quote it to show it as written, as in
+  `choices: ['yes', 'no']`, or write `'True'` or `'False'` to keep True or False.
 - A quiz block's only top-level key is `questions`. A question accepts `q`, `choices`, `answer`
   (the index of the right choice, counting from 0) and `shuffle`; any other key fails the build
   and is named in the error, so a misspelled `shufle: false` cannot leave a question shuffled.
