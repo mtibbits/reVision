@@ -319,6 +319,96 @@ def test_quiz_three_choice_shuffle_true_no_warning():
     assert c.report.warnings == []
 
 
+def _bool_warning(n: int, pos: int, shown: str) -> str:
+    return (
+        f"L/lesson.md:1: quiz question {n} choice {pos} shows as {shown}: YAML reads an unquoted "
+        f"yes, no, on, off, true or false as a boolean; quote the choice to show it as written, "
+        f"or write '{shown}' to keep {shown}"
+    )
+
+
+# The issue's (#73) quiz: every choice but `maybe` loads as a boolean.
+BOOL_QUIZ = (
+    "questions:\n"
+    "  - q: Does add(2, 3) return 5?\n    choices: [yes, no, maybe]\n    answer: 0\n"
+    "  - q: Is the feature enabled?\n    choices: [on, off, true]\n    answer: 0\n"
+)
+
+# render_markdown(_quiz(BOOL_QUIZ), ctx()).html, captured before the warning existed (at 1699901).
+EXPECTED_BOOL_QUIZ_HTML = (
+    '<section class="rv-quiz">\n<h2>Knowledge check</h2>\n<form autocomplete="off">\n'
+    '<fieldset class="rv-q" data-answer="0"><legend>1. Does add(2, 3) return 5?</legend>\n'
+    '<label><input type="radio" name="q0" value="0"> True</label>\n'
+    '<label><input type="radio" name="q0" value="1"> False</label>\n'
+    '<label><input type="radio" name="q0" value="2"> maybe</label>\n'
+    '<p class="rv-q-feedback" hidden></p></fieldset>\n'
+    '<fieldset class="rv-q" data-answer="0"><legend>2. Is the feature enabled?</legend>\n'
+    '<label><input type="radio" name="q1" value="0"> True</label>\n'
+    '<label><input type="radio" name="q1" value="1"> False</label>\n'
+    '<label><input type="radio" name="q1" value="2"> True</label>\n'
+    '<p class="rv-q-feedback" hidden></p></fieldset>\n'
+    '<button type="submit">Check answers</button>\n<p class="rv-quiz-score" hidden></p>\n</form>\n</section>\n'
+)
+
+
+@pytest.mark.parametrize(
+    "written, shown",
+    [
+        ("yes", "True"), ("no", "False"), ("on", "True"), ("off", "False"), ("true", "True"),
+        ("false", "False"), ("Yes", "True"), ("NO", "False"), ("True", "True"), ("OFF", "False"),
+    ],
+)
+def test_quiz_boolean_choice_warns(written, shown):
+    c = ctx()
+    out = render_markdown(_quiz(f"questions:\n  - q: Which?\n    choices: [a, {written}, c]\n    answer: 0\n"), c)
+    assert c.report.warnings == [_bool_warning(1, 2, shown)]
+    assert f"> {shown}</label>" in out.html
+
+
+def test_quiz_boolean_choices_each_warn():
+    c = ctx()
+    render_markdown(_quiz(BOOL_QUIZ), c)
+    assert c.report.warnings == [
+        _bool_warning(1, 1, "True"),
+        _bool_warning(1, 2, "False"),
+        _bool_warning(2, 1, "True"),
+        _bool_warning(2, 2, "False"),
+        _bool_warning(2, 3, "True"),
+    ]
+
+
+def test_quiz_boolean_choices_render_as_before():
+    # The warning leaves the page as it was: byte-identical to the unwarned render.
+    assert render_markdown(_quiz(BOOL_QUIZ), ctx()).html == EXPECTED_BOOL_QUIZ_HTML
+
+
+def test_quiz_boolean_choice_warns_in_block_list():
+    c = ctx()
+    render_markdown(_quiz("questions:\n  - q: Which?\n    choices:\n      - yes\n      - maybe\n      - c\n    answer: 0\n"), c)
+    assert c.report.warnings == [_bool_warning(1, 1, "True")]
+
+
+def test_quiz_boolean_choice_warnings_follow_shuffle_warning():
+    c = ctx()
+    render_markdown(_quiz("questions:\n  - q: Ok?\n    choices: [yes, no]\n    answer: 0\n    shuffle: true\n"), c)
+    assert c.report.warnings == [
+        "L/lesson.md:1: quiz question 1 has two choices, which always keep their order; shuffle: true has no effect",
+        _bool_warning(1, 1, "True"),
+        _bool_warning(1, 2, "False"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "written, shown",
+    [("'yes'", "yes"), ("y", "y"), ("maybe", "maybe"), ("'True'", "True"), ("yEs", "yEs"), ("5", "5")],
+)
+def test_quiz_non_boolean_choice_no_warning(written, shown):
+    c = ctx()
+    out = render_markdown(_quiz(f"questions:\n  - q: Which?\n    choices: [a, {written}, c]\n    answer: 0\n"), c)
+    assert c.report.warnings == []
+    assert f"> {shown}</label>" in out.html
+
+
 def test_quiz_two_choice_threshold_matches_app_js():
     text = (ROOT / "revision_engine/static/app.js").read_text(encoding="utf-8")
     assert text.count("labels.length < 3") == 1, (
@@ -422,6 +512,21 @@ def test_readme_documents_quiz_shuffle():
     assert "data-fixed-order" in out.html
 
 
+def test_readme_boolean_choice_example_shows_as_written():
+    # The README's quoting example, used as written, must show yes/no and draw no warning.
+    matches = re.findall(r"`(choices: \[.*?\])`", _readme_lesson_section())
+    assert len(matches) == 1
+    c = ctx()
+    out = render_markdown(_quiz("questions:\n  - q: Ok?\n    " + matches[0] + "\n    answer: 0\n"), c)
+    assert c.report.warnings == []
+    assert "> yes</label>" in out.html
+    assert "> no</label>" in out.html
+    bullet = _readme_bullet("as a boolean")
+    for word in ["`yes`", "`no`", "`on`", "`off`", "`true`", "`false`", "`'True'`", "`'False'`"]:
+        assert word in bullet
+    assert "warning" in bullet.lower()
+
+
 def _readme_bullet(phrase: str) -> str:
     # The one lesson-section bullet containing phrase (case-insensitive).
     matches = [b for b in _readme_lesson_section().split(" - ") if phrase.lower() in b.lower()]
@@ -448,8 +553,10 @@ def test_readme_documents_two_choice_shuffle_warning():
 
 
 def test_quiz_single_quoted_doubled_apostrophe():
-    body = "```quiz\nquestions:\n  - q: '`main` is the program''s entry?'\n    choices: [yes, no]\n    answer: 0\n```\n"
-    out = render_markdown(body, ctx())
+    body = _quiz("questions:\n  - q: '`main` is the program''s entry?'\n    choices: ['yes', 'no']\n    answer: 0\n")
+    c = ctx()
+    out = render_markdown(body, c)
+    assert c.report.warnings == []
     assert "<legend>1. <code>main</code> is the program's entry?</legend>" in out.html
 
 
