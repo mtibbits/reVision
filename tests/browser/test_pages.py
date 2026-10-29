@@ -169,6 +169,7 @@ def test_transcript_click_releases_pin(hello):
     assert hello.evaluate("location.hash") == ""
     _hover_call_site_and_leave(hello)
     assert boxed(hello) == [7]
+    assert hello.errors == []
 
 
 def test_transcript_click_on_active_segment_releases_pin(hello):
@@ -183,6 +184,7 @@ def test_transcript_click_on_active_segment_releases_pin(hello):
     assert boxed(hello) == [7]
     assert hello.evaluate("window.RV.activeSegment()") == 1
     assert hello.evaluate("location.hash") == ""
+    assert hello.errors == []
 
 
 def test_playback_cue_keeps_pinned_box(hello):
@@ -197,6 +199,7 @@ def test_playback_cue_keeps_pinned_box(hello):
     assert boxed(hello) == [7]
     assert hello.evaluate("location.hash") == ""
     _assert_unpinned(hello)
+    assert hello.errors == []
 
 
 def test_quiz_grades_and_forgets(hello):
