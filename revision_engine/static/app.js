@@ -104,15 +104,17 @@
     clearBox();
   }
   function pin(name) {
+    const was = pinned;
     pinned = name;
-    document.querySelectorAll(".rv-anchor.rv-pinned, .rv-svg-anchor.rv-pinned").forEach((el) => el.classList.remove("rv-pinned"));
+    document.querySelectorAll("[data-anchor].rv-pinned").forEach((el) => el.classList.remove("rv-pinned"));
     body.classList.toggle("rv-pinned", !!name);
     if (name) {
       document.querySelectorAll('[data-anchor="' + name + '"]').forEach((el) => el.classList.add("rv-pinned"));
       showAnchor(name);
       if (history.replaceState) history.replaceState(null, "", "#" + name);
     } else {
-      if (history.replaceState) history.replaceState(null, "", location.pathname + location.search);
+      /* Only clear a URL that names what is being unpinned; a #t= that just seeked stays. */
+      if (was && location.hash === "#" + was && history.replaceState) history.replaceState(null, "", location.pathname + location.search);
       restore();
     }
   }
@@ -174,7 +176,8 @@
     if (!seg) { cueBox = null; return; }
     const range = seg.show ? unionRange(seg.show) : null;
     cueBox = range;
-    if (range) boxLines(range.start, range.end);
+    /* Playback does not override a pin; restore() shows the cue on unpin. */
+    if (range && !pinned) boxLines(range.start, range.end);
     if (seg.diagram) {
       const fig = document.querySelector('.rv-diagram[data-diagram="' + seg.diagram + '"]');
       if (fig) {
@@ -198,8 +201,11 @@
   let pendingSeekTo = null;
   function seek(seconds) {
     if (!mediaEl) return;
+    /* An explicit seek releases the pin, so the box follows the reader's latest choice. */
+    const released = !!pinned;
+    if (released) pin(null);
     const i = segmentAt(seconds);
-    if (i !== activeIndex) applyCue(i);
+    if (i !== activeIndex || released) applyCue(i);
     if (mediaEl.readyState >= 1) mediaEl.currentTime = seconds;
     else pendingSeekTo = seconds;
   }
