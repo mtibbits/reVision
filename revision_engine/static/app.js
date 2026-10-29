@@ -113,7 +113,7 @@
       showAnchor(name);
       if (history.replaceState) history.replaceState(null, "", "#" + name);
     } else {
-      /* Only clear a URL that names what is being unpinned; a #t= that just seeked stays. */
+      /* Only clear a URL that names what is being unpinned; any other fragment stays, such as a #t= that just seeked or one Escape meets. */
       if (was && location.hash === "#" + was && history.replaceState) history.replaceState(null, "", location.pathname + location.search);
       restore();
     }
