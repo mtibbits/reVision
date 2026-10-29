@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-import http.server
 import re
-import shutil
-import threading
-from functools import partial
-from pathlib import Path
 
 import pytest
 
-from revision_engine.build import build
-
-from .conftest import FIXED, _QuietHandler
+from .conftest import build_example, serve
 
 OLD = "replace the single addition with something like `_mm256_fmadd_ps`,"
 NEW = "replace [the single addition with something like `_mm256_fmadd_ps`](@add-expr),"
@@ -23,19 +16,14 @@ LINK = PHRASE + " a.rv-intrinsic"
 
 @pytest.fixture(scope="module")
 def nested_url(tmp_path_factory):
-    root = tmp_path_factory.mktemp("nested")
-    src = root / "m"
-    shutil.copytree(Path(__file__).resolve().parents[2] / "examples" / "minimal", src)
-    lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello/lesson.md"
-    text = lesson.read_text(encoding="utf-8")
-    assert text.count(OLD) == 1
-    lesson.write_text(text.replace(OLD, NEW), encoding="utf-8")
-    out = root / "out"
-    build(src, output=out, commit=FIXED)
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), partial(_QuietHandler, directory=str(out)))
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{server.server_address[1]}/intro/hello/"
-    server.shutdown()
+    def edit(src):
+        lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello/lesson.md"
+        text = lesson.read_text(encoding="utf-8")
+        assert text.count(OLD) == 1
+        lesson.write_text(text.replace(OLD, NEW), encoding="utf-8")
+
+    with serve(build_example(tmp_path_factory, "nested", edit=edit)) as url:
+        yield url + "intro/hello/"
 
 
 @pytest.fixture

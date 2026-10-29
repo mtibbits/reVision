@@ -2,118 +2,14 @@
 
 from __future__ import annotations
 
-import http.server
-import re
-import shutil
-import threading
-from functools import partial
-from pathlib import Path
-from typing import NamedTuple
-
 import pytest
 
-from revision_engine.build import build
-from revision_engine.narration import SilentSynthesizer, narrate
-
-from .conftest import FIXED, _QuietHandler
-
-SEGMENTS = 14
-WAV = re.compile(r".*\.wav(\?.*)?$")
-APP = re.compile(r".*/assets/app\.[0-9a-f]+\.js$")
-
-
-class MediaGate:
-    """Holds the test server's media (which it always fails) or app.js until released."""
-
-    def __init__(self) -> None:
-        self.media = threading.Event()
-        self.app = threading.Event()
-        self.release()
-
-    def release(self) -> None:
-        self.media.set()
-        self.app.set()
-
-
-class _GatedHandler(_QuietHandler):
-    def __init__(self, *args, gate: MediaGate, **kwargs):
-        self.gate = gate  # before super().__init__, which serves the request
-        super().__init__(*args, **kwargs)
-
-    def send_head(self):
-        if WAV.match(self.path):
-            self.gate.media.wait(30)
-            self.send_error(404)
-            return None
-        if APP.match(self.path):
-            self.gate.app.wait(30)
-        return super().send_head()
-
-
-class GatedSite(NamedTuple):
-    url: str
-    gate: MediaGate
-
-
-def _serve_gated(out: Path):
-    gate = MediaGate()
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), partial(_GatedHandler, gate=gate, directory=str(out)))
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield GatedSite(f"http://127.0.0.1:{server.server_address[1]}/intro/hello/", gate)
-    gate.release()
-    server.shutdown()
-
-
-@pytest.fixture(scope="module")
-def long_media(tmp_path_factory):
-    root = tmp_path_factory.mktemp("media")
-    src = root / "m"
-    shutil.copytree(Path(__file__).resolve().parents[2] / "examples" / "minimal", src)
-    lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
-    (lesson / "narration.yaml").write_text(
-        "segments:\n"
-        + "".join(f"  - text: Segment number {i} of the narration.\n    show: add-fn\n" for i in range(SEGMENTS)),
-        encoding="utf-8",
-    )
-    narrate(lesson, SilentSynthesizer(rate=8000, seconds_per_char=0.01), voice="silent-fixture")
-    out = root / "out"
-    build(src, output=out, commit=FIXED)
-    yield from _serve_gated(out)
+from .conftest import SEGMENTS, fail_media, serve_gated
 
 
 @pytest.fixture(scope="module")
 def short_media(site_out):
-    yield from _serve_gated(site_out)
-
-
-def fail_media(page, site: GatedSite, order: str) -> list[str]:
-    """Load site with its media failing before ("early") or after ("late") the deferred app.js runs.
-
-    The server fails the media, not page.route: WebKit's media requests never reach Playwright, so a route
-    neither sees nor fails them."""
-    errors: list[str] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    gate = site.gate
-    try:
-        if order == "late":
-            gate.media.clear()
-            page.goto(site.url, wait_until="domcontentloaded")  # a held media request delays "load"
-            page.wait_for_function("window.RV !== undefined")
-            assert page.evaluate("document.getElementById('rv-media-el').error === null")
-            gate.media.set()
-        else:
-            gate.app.clear()
-            page.goto(site.url, wait_until="commit")
-            page.wait_for_function(
-                "(() => { const m = document.getElementById('rv-media-el'); return !!m && m.error !== null; })()"
-            )
-            assert page.evaluate("window.RV === undefined")
-            gate.app.set()
-            page.wait_for_function("window.RV !== undefined")
-        page.wait_for_function("!document.querySelector('.rv-media-error').hidden", timeout=5000)
-    finally:
-        gate.release()
-    return errors
+    yield from serve_gated(site_out)
 
 
 def measure(page) -> dict:

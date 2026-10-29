@@ -6,11 +6,7 @@ import math
 
 import pytest
 
-from . import test_media_error as _media_error
-from .test_pages import MEDIA_READY
-
-# A fixture re-exported rather than imported by name, so the test parameter does not shadow an import.
-long_media = _media_error.long_media
+from .conftest import MEDIA_READY, fail_media
 
 TOL = 0.5
 
@@ -141,7 +137,7 @@ def test_cap_waits_for_container_query_support(hello):
 
 def test_failed_media_pane_no_taller_than_lesson_when_narrow(page, long_media):
     page.set_viewport_size({"width": 700, "height": 500})
-    errors = _media_error.fail_media(page, long_media, "late")
+    errors = fail_media(page, long_media, "late")
     g = geometry(page)
     assert g["pane"]["height"] <= g["lesson"]["height"] + TOL, g
     assert inside(g["error"], g["pane"]), g
