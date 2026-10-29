@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from .test_pages import MEDIA_READY, boxed
+from .conftest import MEDIA_READY, boxed
 
 
 def measure(page) -> dict:

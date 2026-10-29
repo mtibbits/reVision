@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from .conftest import build_example, open_lesson, serve
+from .conftest import boxed, build_example, open_lesson, serve
 
 OLD = "replace the single addition with something like `_mm256_fmadd_ps`,"
 NEW = "replace [the single addition with something like `_mm256_fmadd_ps`](@add-expr),"
@@ -29,10 +29,6 @@ def nested_url(tmp_path_factory):
 @pytest.fixture
 def nested(page, nested_url):
     return open_lesson(page, nested_url)
-
-
-def boxed(page):
-    return page.evaluate("Array.from(document.querySelectorAll('.rv-line.rv-boxed')).map(l => +l.dataset.line)")
 
 
 def stub_vendor(page) -> str:

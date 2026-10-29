@@ -1,9 +1,8 @@
 import pytest
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from .conftest import open_lesson
+from .conftest import MEDIA_READY, boxed, open_lesson
 
-MEDIA_READY = "document.getElementById('rv-media-el').readyState >= 1"
 AT_5_5 = "Math.abs(document.getElementById('rv-media-el').currentTime - 5.5) < 0.01"
 MAIN_FN = '.rv-anchor[data-anchor="main-fn"]'
 CALL_SITE = '.rv-anchor[data-anchor="call-site"]'
@@ -11,10 +10,6 @@ SEG_1 = '.rv-seg[data-index="1"]'
 SETTLED_ON_SEG_1 = (
     "(() => { const m = document.getElementById('rv-media-el'); return !m.seeking && window.RV.activeSegment() === 1; })()"
 )
-
-
-def boxed(page):
-    return page.evaluate("Array.from(document.querySelectorAll('.rv-line.rv-boxed')).map(l => +l.dataset.line)")
 
 
 def test_loads_with_start_anchor_boxed_and_no_errors(hello):
