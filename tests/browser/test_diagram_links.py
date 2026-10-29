@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from .conftest import build_example, serve
+from .conftest import build_example, open_lesson, serve
 
 EDITS = {"add-fn": 'URL="https://example.com/add"', "printf-node": 'href="https://example.com/printf"'}
 # Every selector is SVG-scoped: the variant button and the phrase span also carry data-anchor="add-fn".
@@ -45,13 +45,9 @@ def links(page, links_url):
         re.compile(r"^https://example\.com/"),
         lambda r: r.fulfill(status=200, content_type="text/html", body="<p>stub</p>"),
     )
-    errors: list[str] = []
     popups: list[object] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
     page.context.on("page", lambda p: popups.append(p))
-    page.goto(links_url)
-    page.wait_for_function("window.RV !== undefined")
-    page.errors = errors  # type: ignore[attr-defined]
+    open_lesson(page, links_url)
     page.popups = popups  # type: ignore[attr-defined]
     return page
 

@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from .conftest import build_example, serve
+from .conftest import build_example, open_lesson, serve
 
 OLD = "replace the single addition with something like `_mm256_fmadd_ps`,"
 NEW = "replace [the single addition with something like `_mm256_fmadd_ps`](@add-expr),"
@@ -28,12 +28,7 @@ def nested_url(tmp_path_factory):
 
 @pytest.fixture
 def nested(page, nested_url):
-    errors: list[str] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(nested_url)
-    page.wait_for_function("window.RV !== undefined")
-    page.errors = errors  # type: ignore[attr-defined]
-    return page
+    return open_lesson(page, nested_url)
 
 
 def boxed(page):

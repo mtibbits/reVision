@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import build_example, serve
+from .conftest import build_example, open_lesson, serve
 
 OLD_Q2 = "    answer: 1\n"
 NEW_Q2 = "    answer: 1\n    shuffle: false\n"
@@ -34,13 +34,7 @@ def fixed_url(tmp_path_factory):
 @pytest.fixture
 def open_quiz(page):
     def go(url: str, r: float):
-        page.add_init_script(f"Math.random = () => {r}")
-        errors: list[str] = []
-        page.on("pageerror", lambda e: errors.append(str(e)))
-        page.goto(url)
-        page.wait_for_function("window.RV !== undefined")
-        page.errors = errors  # type: ignore[attr-defined]
-        return page
+        return open_lesson(page, url, init_script=f"Math.random = () => {r}")
 
     return go
 

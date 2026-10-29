@@ -1,6 +1,8 @@
 import pytest
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
+from .conftest import open_lesson
+
 MEDIA_READY = "document.getElementById('rv-media-el').readyState >= 1"
 AT_5_5 = "Math.abs(document.getElementById('rv-media-el').currentTime - 5.5) < 0.01"
 MAIN_FN = '.rv-anchor[data-anchor="main-fn"]'
@@ -53,23 +55,16 @@ def test_fragment_pins_on_load(page, site_url):
     assert boxed(page) == [10, 11, 12, 13, 14, 15]
 
 
-def _goto_collecting_errors(page, url):
-    errors = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(url)
-    return errors
-
-
-def _assert_page_works(page, errors):
-    assert errors == []
+def _assert_page_works(page):
+    assert page.errors == []
     assert page.evaluate("typeof window.RV") == "object"
     page.check('input[name="q0"][value="0"]')
     assert "Correct" in page.locator('.rv-q[data-answer="0"] .rv-q-feedback').inner_text()
 
 
 def test_malformed_fragment_keeps_page_working(page, site_url):
-    errors = _goto_collecting_errors(page, site_url + "intro/hello/#%")
-    _assert_page_works(page, errors)
+    open_lesson(page, site_url + "intro/hello/#%", wait=False)  # no RV wait: this fragment may break startup
+    _assert_page_works(page)
     assert boxed(page) == [5, 6, 7, 8]
 
 
@@ -98,9 +93,9 @@ def test_fragment_t_seeks_on_load(page, site_url):
 
 
 def test_non_finite_t_fragment_keeps_page_working(page, site_url):
-    errors = _goto_collecting_errors(page, site_url + "intro/hello/#t=Infinity")
+    open_lesson(page, site_url + "intro/hello/#t=Infinity", wait=False)  # no RV wait: this fragment may break startup
     page.wait_for_function(MEDIA_READY)
-    _assert_page_works(page, errors)
+    _assert_page_works(page)
     assert boxed(page) == [5, 6, 7, 8]
     page.evaluate("document.getElementById('rv-media-el').currentTime = window.RV.data.cues[0].start + 0.05")
     page.wait_for_function("window.RV.activeSegment() === 0", timeout=3000)
@@ -215,9 +210,11 @@ def test_quiz_grades_and_forgets(hello):
 
 
 def test_quiz_forgets_after_back(page, site_url):
-    page.add_init_script('addEventListener("pageshow", e => { (window.__rvShows ||= []).push(e.persisted); })')
-    errors = _goto_collecting_errors(page, site_url + "intro/hello/")
-    page.wait_for_function("window.RV !== undefined")
+    open_lesson(
+        page,
+        site_url + "intro/hello/",
+        init_script='addEventListener("pageshow", e => { (window.__rvShows ||= []).push(e.persisted); })',
+    )
     page.check('input[name="q0"][value="0"]')
     page.check('input[name="q1"][value="2"]')
     assert page.locator('.rv-q[data-answer="0"] .rv-q-feedback').is_visible()
@@ -236,7 +233,7 @@ def test_quiz_forgets_after_back(page, site_url):
     assert all(f.is_hidden() for f in page.locator(".rv-q-feedback").all())
     assert page.locator(".rv-quiz-score").count() == 1
     assert page.locator(".rv-quiz-score").is_hidden()
-    assert errors == []
+    assert page.errors == []
 
 
 def test_quiz_feedback_adds_one_line_whether_right_or_wrong(hello):
@@ -260,12 +257,9 @@ def test_quiz_text_reads_as_written(hello):
 
 
 def test_lesson_without_media_has_no_pane_and_no_errors(page, site_url):
-    errors = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(site_url + "intro/quiet/")
-    page.wait_for_function("window.RV !== undefined")
+    open_lesson(page, site_url + "intro/quiet/")
     assert page.locator("#rv-media").is_hidden()
-    assert errors == []
+    assert page.errors == []
 
 
 def test_bracket_keys_navigate(hello):
