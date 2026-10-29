@@ -3,6 +3,12 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 MEDIA_READY = "document.getElementById('rv-media-el').readyState >= 1"
 AT_5_5 = "Math.abs(document.getElementById('rv-media-el').currentTime - 5.5) < 0.01"
+MAIN_FN = '.rv-anchor[data-anchor="main-fn"]'
+CALL_SITE = '.rv-anchor[data-anchor="call-site"]'
+SEG_1 = '.rv-seg[data-index="1"]'
+SETTLED_ON_SEG_1 = (
+    "(() => { const m = document.getElementById('rv-media-el'); return !m.seeking && window.RV.activeSegment() === 1; })()"
+)
 
 
 def boxed(page):
@@ -123,6 +129,77 @@ def test_timeupdate_drives_cues(hello):
     hello.evaluate("window.RV.seek(window.RV.data.cues[0].start + 0.05)")
     assert hello.evaluate("window.RV.activeSegment()") == 0
     assert boxed(hello) == [5, 6, 7, 8]
+
+
+def _pin_main_fn(page):
+    page.click(MAIN_FN)
+    assert boxed(page) == list(range(10, 16))
+
+
+def _assert_unpinned(page):
+    assert page.evaluate("window.RV.pinned") is None
+    assert page.evaluate("document.querySelectorAll('.rv-pinned').length") == 0
+
+
+def _hover_call_site_and_leave(page):
+    page.hover(CALL_SITE)
+    page.mouse.move(0, 0)
+
+
+def test_fragment_t_seek_releases_pin(hello):
+    hello.wait_for_function(MEDIA_READY)
+    _pin_main_fn(hello)
+    hello.evaluate("location.hash = '#t=5.5'")
+    _assert_seeked_to_5_5(hello)
+    _assert_unpinned(hello)
+    assert hello.evaluate("location.hash") == "#t=5.5"
+    _hover_call_site_and_leave(hello)
+    assert boxed(hello) == [7]
+    hello.keyboard.press("Escape")
+    assert boxed(hello) == [7]
+    assert hello.evaluate("location.hash") == "#t=5.5"
+    assert hello.errors == []
+
+
+def test_transcript_click_releases_pin(hello):
+    _pin_main_fn(hello)
+    hello.click(SEG_1)
+    _assert_unpinned(hello)
+    assert boxed(hello) == [7]
+    assert hello.evaluate("location.hash") == ""
+    _hover_call_site_and_leave(hello)
+    assert boxed(hello) == [7]
+    assert hello.errors == []
+
+
+def test_transcript_click_on_active_segment_releases_pin(hello):
+    hello.wait_for_function(MEDIA_READY)
+    hello.click(SEG_1)
+    hello.wait_for_function(SETTLED_ON_SEG_1)
+    assert boxed(hello) == [7]
+    _pin_main_fn(hello)
+    assert hello.evaluate("window.RV.activeSegment()") == 1
+    hello.click(SEG_1)
+    _assert_unpinned(hello)
+    assert boxed(hello) == [7]
+    assert hello.evaluate("window.RV.activeSegment()") == 1
+    assert hello.evaluate("location.hash") == ""
+    assert hello.errors == []
+
+
+def test_playback_cue_keeps_pinned_box(hello):
+    hello.wait_for_function(MEDIA_READY)
+    _pin_main_fn(hello)
+    hello.evaluate("document.getElementById('rv-media-el').currentTime = window.RV.data.cues[1].start + 0.05")
+    hello.wait_for_function("window.RV.activeSegment() === 1", timeout=3000)
+    assert boxed(hello) == list(range(10, 16))
+    assert hello.evaluate("window.RV.pinned") == "main-fn"
+    assert "rv-active" in hello.locator(SEG_1).get_attribute("class").split()
+    hello.keyboard.press("Escape")
+    assert boxed(hello) == [7]
+    assert hello.evaluate("location.hash") == ""
+    _assert_unpinned(hello)
+    assert hello.errors == []
 
 
 def test_quiz_grades_and_forgets(hello):
