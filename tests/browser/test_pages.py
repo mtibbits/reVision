@@ -44,6 +44,22 @@ def test_click_pins_sets_hash_and_escape_clears(hello):
     assert boxed(hello) == [] and hello.evaluate("location.hash") == ""
 
 
+def test_enter_on_focused_plain_anchor_still_pins(hello):
+    hello.locator(CALL_SITE).focus()
+    hello.keyboard.press("Enter")
+    assert boxed(hello) == [12]
+    assert hello.evaluate("location.hash") == "#call-site"
+    assert hello.evaluate("window.RV.pinned") == "call-site"
+
+
+def test_focus_and_blur_on_plain_anchor(hello):
+    assert boxed(hello) == [5, 6, 7, 8]
+    hello.locator(CALL_SITE).focus()
+    assert boxed(hello) == [12]
+    hello.evaluate("document.activeElement.blur()")
+    assert boxed(hello) == []
+
+
 def test_fragment_pins_on_load(page, site_url):
     page.goto(site_url + "intro/hello/#main-fn")
     page.wait_for_function("window.RV !== undefined")

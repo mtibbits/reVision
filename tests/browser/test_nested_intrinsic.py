@@ -98,22 +98,6 @@ def test_focus_on_nested_link_boxes_the_anchor(nested):
     assert boxed(nested) == []
 
 
-def test_enter_on_focused_plain_anchor_still_pins(nested):
-    nested.locator('.rv-anchor[data-anchor="call-site"]').focus()
-    nested.keyboard.press("Enter")
-    assert boxed(nested) == [12]
-    assert nested.evaluate("location.hash") == "#call-site"
-    assert nested.evaluate("window.RV.pinned") == "call-site"
-
-
-def test_focus_and_blur_on_plain_anchor(nested):
-    assert boxed(nested) == [5, 6, 7, 8]
-    nested.locator('.rv-anchor[data-anchor="call-site"]').focus()
-    assert boxed(nested) == [12]
-    nested.evaluate("document.activeElement.blur()")
-    assert boxed(nested) == []
-
-
 @pytest.mark.xfail_browser(
     "webkit", platforms=("win32",), reason="WebKit on Windows skips links on Tab (#81)", raises=AssertionError
 )
