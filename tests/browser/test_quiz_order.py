@@ -31,8 +31,7 @@ def fixed_url(tmp_path_factory):
 @pytest.fixture
 def open_quiz(page):
     def go(url: str, r: float):
-        page.add_init_script(f"Math.random = () => {r}")
-        return open_lesson(page, url)
+        return open_lesson(page, url, init_script=f"Math.random = () => {r}")
 
     return go
 

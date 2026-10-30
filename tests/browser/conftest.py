@@ -63,21 +63,18 @@ def serve(out: Path, handler=_QuietHandler, **handler_kwargs):
         server.server_close()
 
 
-def collect_errors(page) -> None:
-    """Collect the page's uncaught errors into page.errors from now on."""
+def open_lesson(page, url: str, init_script: str | None = None, wait: bool = True):
+    """Open url collecting uncaught page errors into page.errors, waiting for the app to start unless told not to.
+
+    The init script is added before the first goto, so it runs on that load too."""
+    if init_script is not None:
+        page.add_init_script(init_script)
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.errors = errors  # type: ignore[attr-defined]
-
-
-def open_lesson(page, url: str, wait: bool = True):
-    """Open url collecting uncaught page errors into page.errors, waiting for the app to start.
-
-    wait=False is for URLs that may break startup, where waiting for the app would hang instead of failing."""
-    collect_errors(page)
     page.goto(url)
     if wait:
         page.wait_for_function("window.RV !== undefined")
+    page.errors = errors  # type: ignore[attr-defined]
     return page
 
 
@@ -128,12 +125,13 @@ def serve_gated(out: Path):
             gate.release()
 
 
-def fail_media(page, site: GatedSite, order: str) -> None:
+def fail_media(page, site: GatedSite, order: str) -> list[str]:
     """Load site with its media failing before ("early") or after ("late") the deferred app.js runs.
 
     The server fails the media, not page.route: WebKit's media requests never reach Playwright, so a route
-    neither sees nor fails them. Uncaught page errors land in page.errors."""
-    collect_errors(page)
+    neither sees nor fails them."""
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
     gate = site.gate
     try:
         if order == "late":
@@ -154,6 +152,7 @@ def fail_media(page, site: GatedSite, order: str) -> None:
         page.wait_for_function("!document.querySelector('.rv-media-error').hidden", timeout=5000)
     finally:
         gate.release()
+    return errors
 
 
 @pytest.fixture(scope="session")
@@ -173,7 +172,7 @@ def hello(page, site_url):
     return open_lesson(page, site_url + "intro/hello/")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def long_media(tmp_path_factory):
     def edit(src):
         lesson = src / HELLO_SRC

@@ -42,7 +42,7 @@ def measure(page) -> dict:
 @pytest.mark.parametrize("order", ["early", "late"])
 def test_error_message_visible_with_long_transcript(page, long_media, order, width):
     page.set_viewport_size({"width": width, "height": 800})
-    fail_media(page, long_media, order)
+    errors = fail_media(page, long_media, order)
     m = measure(page)
     assert m["segCount"] == SEGMENTS, m  # the subject: a transcript longer than the pane
     assert m["tScroll"] > m["tClient"], m
@@ -51,12 +51,12 @@ def test_error_message_visible_with_long_transcript(page, long_media, order, wid
     assert m["msgInside"], m
     assert m["playerHidden"], m
     assert m["tH"] > 0, m
-    assert page.errors == []
+    assert errors == []
 
 
 def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media):
     page.set_viewport_size({"width": 1400, "height": 800})
-    fail_media(page, long_media, "late")
+    errors = fail_media(page, long_media, "late")
     box = page.evaluate(
         """(() => {
           const t = document.getElementById('rv-transcript');
@@ -68,7 +68,7 @@ def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media):
     )
     assert box["sTop"] >= box["tTop"] - 1, box
     assert box["sBottom"] <= box["tBottom"] + 1, box
-    assert page.errors == []
+    assert errors == []
 
 
 @pytest.mark.parametrize("case", ["long", "short"])
@@ -76,7 +76,7 @@ def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media):
 def test_failed_pane_fits_content_and_caps(page, long_media, short_media, order, case):
     page.set_viewport_size({"width": 1400, "height": 800})
     site = long_media if case == "long" else short_media
-    fail_media(page, site, order)
+    errors = fail_media(page, site, order)
     m = measure(page)
     assert m["msgH"] > 0 and m["msgInside"], m
     assert m["paneH"] <= m["cap"] + 0.5, m
@@ -86,7 +86,7 @@ def test_failed_pane_fits_content_and_caps(page, long_media, short_media, order,
         assert m["paneH"] < m["cap"] - 1, m  # the pane shrank to its content
     else:
         assert m["paneH"] >= m["cap"] - 0.5, m  # the pane is capped, not grown
-    assert page.errors == []
+    assert errors == []
 
 
 def test_working_media_pane_unchanged(hello):
