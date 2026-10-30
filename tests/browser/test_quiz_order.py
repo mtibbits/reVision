@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import build_example, open_lesson, serve
+from .conftest import HELLO_SRC, build_example, open_lesson, replace_once, serve
 
 OLD_Q2 = "    answer: 1\n"
 NEW_Q2 = "    answer: 1\n    shuffle: false\n"
@@ -20,12 +20,9 @@ ROTATED = [c[1:] + c[:1] for c in AUTHORED]
 @pytest.fixture(scope="module")
 def fixed_url(tmp_path_factory):
     def edit(src):
-        lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello/lesson.md"
-        text = lesson.read_text(encoding="utf-8")
-        assert text.count(OLD_Q2) == 1
-        text = text.replace(OLD_Q2, NEW_Q2)
-        assert text.count(OLD_END) == 1
-        lesson.write_text(text.replace(OLD_END, NEW_END), encoding="utf-8")
+        lesson = src / HELLO_SRC / "lesson.md"
+        replace_once(lesson, OLD_Q2, NEW_Q2)
+        replace_once(lesson, OLD_END, NEW_END)
 
     with serve(build_example(tmp_path_factory, "fixed", edit=edit)) as url:
         yield url + "intro/hello/"
@@ -34,7 +31,8 @@ def fixed_url(tmp_path_factory):
 @pytest.fixture
 def open_quiz(page):
     def go(url: str, r: float):
-        return open_lesson(page, url, init_script=f"Math.random = () => {r}")
+        page.add_init_script(f"Math.random = () => {r}")
+        return open_lesson(page, url)
 
     return go
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import build_example, serve
+from .conftest import build_example, open_lesson, serve
 
 LONG_LINES = 600
 
@@ -35,8 +35,7 @@ def long_site_url(tmp_path_factory):
 @pytest.mark.parametrize("width", [1400, 700])
 def test_long_file_scrolls_inside_code_pane(page, long_site_url, width):
     page.set_viewport_size({"width": width, "height": 800})
-    page.goto(long_site_url + "intro/long/")
-    page.wait_for_function("window.RV !== undefined")
+    open_lesson(page, long_site_url + "intro/long/")
     metrics = page.evaluate(
         "(() => { const b = document.querySelector('.rv-code-body');"
         " return { bodyScrollH: b.scrollHeight, bodyClientH: b.clientHeight, bodyTop: b.scrollTop,"

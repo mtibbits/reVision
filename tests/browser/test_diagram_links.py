@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from .conftest import build_example, open_lesson, serve
+from .conftest import HELLO_SRC, build_example, open_lesson, replace_once, serve
 
 EDITS = {"add-fn": 'URL="https://example.com/add"', "printf-node": 'href="https://example.com/printf"'}
 # Every selector is SVG-scoped: the variant button and the phrase span also carry data-anchor="add-fn".
@@ -28,12 +28,8 @@ LINKED = (
 @pytest.fixture(scope="module")
 def links_url(tmp_path_factory):
     def edit(src):
-        dot = src / "docs/revision/chapters/01-intro/lessons/01-hello/diagrams/flow.dot"
-        text = dot.read_text(encoding="utf-8")
         for node, attr in EDITS.items():
-            assert text.count(f'id="{node}"') == 1
-            text = text.replace(f'id="{node}"', f'id="{node}", {attr}')
-        dot.write_text(text, encoding="utf-8", newline="\n")
+            replace_once(src / HELLO_SRC / "diagrams/flow.dot", f'id="{node}"', f'id="{node}", {attr}')
 
     with serve(build_example(tmp_path_factory, "links", edit=edit)) as url:
         yield url + "intro/hello/"

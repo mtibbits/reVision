@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from .conftest import boxed, build_example, open_lesson, serve
+from .conftest import HELLO_SRC, boxed, build_example, open_lesson, replace_once, serve
 
 OLD = "replace the single addition with something like `_mm256_fmadd_ps`,"
 NEW = "replace [the single addition with something like `_mm256_fmadd_ps`](@add-expr),"
@@ -17,10 +17,7 @@ LINK = PHRASE + " a.rv-intrinsic"
 @pytest.fixture(scope="module")
 def nested_url(tmp_path_factory):
     def edit(src):
-        lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello/lesson.md"
-        text = lesson.read_text(encoding="utf-8")
-        assert text.count(OLD) == 1
-        lesson.write_text(text.replace(OLD, NEW), encoding="utf-8")
+        replace_once(src / HELLO_SRC / "lesson.md", OLD, NEW)
 
     with serve(build_example(tmp_path_factory, "nested", edit=edit)) as url:
         yield url + "intro/hello/"

@@ -15,9 +15,11 @@ from revision_engine.build import build
 from revision_engine.narration import SilentSynthesizer, narrate
 from revision_engine.serve import RangeHTTPRequestHandler
 
+from ..conftest import EXAMPLES
 from .marks import pytest_collection_modifyitems, pytest_configure  # noqa: F401 - the xfail_browser hooks
 
 FIXED = "0123456789abcdef0123456789abcdef01234567"
+HELLO_SRC = "docs/revision/chapters/01-intro/lessons/01-hello"
 MEDIA_READY = "document.getElementById('rv-media-el').readyState >= 1"
 SEGMENTS = 14
 WAV = re.compile(r".*\.wav(\?.*)?$")
@@ -35,12 +37,18 @@ def build_example(tmp_path_factory, name: str, edit=None) -> Path:
     """Build a fresh copy of the minimal example, after edit(src) changes it if given."""
     root = tmp_path_factory.mktemp(name)
     src = root / "m"
-    shutil.copytree(Path(__file__).resolve().parents[2] / "examples" / "minimal", src)
+    shutil.copytree(EXAMPLES / "minimal", src)
     if edit is not None:
         edit(src)
     out = root / "out"
     build(src, output=out, commit=FIXED)
     return out
+
+
+def replace_once(path: Path, old: str, new: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    assert text.count(old) == 1, old
+    path.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
 
 
 @contextlib.contextmanager
@@ -55,18 +63,21 @@ def serve(out: Path, handler=_QuietHandler, **handler_kwargs):
         server.server_close()
 
 
-def open_lesson(page, url: str, init_script: str | None = None, wait: bool = True):
-    """Open url collecting uncaught page errors into page.errors, waiting for the app to start unless told not to.
-
-    The init script is added before the first goto, so it runs on that load too."""
-    if init_script is not None:
-        page.add_init_script(init_script)
+def collect_errors(page) -> None:
+    """Collect the page's uncaught errors into page.errors from now on."""
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
+    page.errors = errors  # type: ignore[attr-defined]
+
+
+def open_lesson(page, url: str, wait: bool = True):
+    """Open url collecting uncaught page errors into page.errors, waiting for the app to start.
+
+    wait=False is for URLs that may break startup, where waiting for the app would hang instead of failing."""
+    collect_errors(page)
     page.goto(url)
     if wait:
         page.wait_for_function("window.RV !== undefined")
-    page.errors = errors  # type: ignore[attr-defined]
     return page
 
 
@@ -107,6 +118,7 @@ class GatedSite(NamedTuple):
     gate: MediaGate
 
 
+@contextlib.contextmanager
 def serve_gated(out: Path):
     gate = MediaGate()
     with serve(out, _GatedHandler, gate=gate) as base:
@@ -116,13 +128,12 @@ def serve_gated(out: Path):
             gate.release()
 
 
-def fail_media(page, site: GatedSite, order: str) -> list[str]:
+def fail_media(page, site: GatedSite, order: str) -> None:
     """Load site with its media failing before ("early") or after ("late") the deferred app.js runs.
 
     The server fails the media, not page.route: WebKit's media requests never reach Playwright, so a route
-    neither sees nor fails them."""
-    errors: list[str] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    neither sees nor fails them. Uncaught page errors land in page.errors."""
+    collect_errors(page)
     gate = site.gate
     try:
         if order == "late":
@@ -143,7 +154,6 @@ def fail_media(page, site: GatedSite, order: str) -> list[str]:
         page.wait_for_function("!document.querySelector('.rv-media-error').hidden", timeout=5000)
     finally:
         gate.release()
-    return errors
 
 
 @pytest.fixture(scope="session")
@@ -163,10 +173,10 @@ def hello(page, site_url):
     return open_lesson(page, site_url + "intro/hello/")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def long_media(tmp_path_factory):
     def edit(src):
-        lesson = src / "docs/revision/chapters/01-intro/lessons/01-hello"
+        lesson = src / HELLO_SRC
         (lesson / "narration.yaml").write_text(
             "segments:\n"
             + "".join(f"  - text: Segment number {i} of the narration.\n    show: add-fn\n" for i in range(SEGMENTS)),
@@ -174,4 +184,5 @@ def long_media(tmp_path_factory):
         )
         narrate(lesson, SilentSynthesizer(rate=8000, seconds_per_char=0.01), voice="silent-fixture")
 
-    yield from serve_gated(build_example(tmp_path_factory, "media", edit=edit))
+    with serve_gated(build_example(tmp_path_factory, "media", edit=edit)) as site:
+        yield site

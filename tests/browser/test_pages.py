@@ -61,8 +61,7 @@ def test_focus_and_blur_on_plain_anchor(hello):
 
 
 def test_fragment_pins_on_load(page, site_url):
-    page.goto(site_url + "intro/hello/#main-fn")
-    page.wait_for_function("window.RV !== undefined")
+    open_lesson(page, site_url + "intro/hello/#main-fn")
     assert boxed(page) == [10, 11, 12, 13, 14, 15]
 
 
@@ -74,7 +73,7 @@ def _assert_page_works(page):
 
 
 def test_malformed_fragment_keeps_page_working(page, site_url):
-    open_lesson(page, site_url + "intro/hello/#%", wait=False)  # no RV wait: this fragment may break startup
+    open_lesson(page, site_url + "intro/hello/#%", wait=False)
     _assert_page_works(page)
     assert boxed(page) == [5, 6, 7, 8]
 
@@ -97,14 +96,13 @@ def test_fragment_t_seeks_after_load(hello):
 
 
 def test_fragment_t_seeks_on_load(page, site_url):
-    page.goto(site_url + "intro/hello/#t=5.5")
-    page.wait_for_function("window.RV !== undefined")
+    open_lesson(page, site_url + "intro/hello/#t=5.5")
     page.wait_for_function(MEDIA_READY)
     _assert_seeked_to_5_5(page)
 
 
 def test_non_finite_t_fragment_keeps_page_working(page, site_url):
-    open_lesson(page, site_url + "intro/hello/#t=Infinity", wait=False)  # no RV wait: this fragment may break startup
+    open_lesson(page, site_url + "intro/hello/#t=Infinity", wait=False)
     page.wait_for_function(MEDIA_READY)
     _assert_page_works(page)
     assert boxed(page) == [5, 6, 7, 8]
@@ -221,11 +219,8 @@ def test_quiz_grades_and_forgets(hello):
 
 
 def test_quiz_forgets_after_back(page, site_url):
-    open_lesson(
-        page,
-        site_url + "intro/hello/",
-        init_script='addEventListener("pageshow", e => { (window.__rvShows ||= []).push(e.persisted); })',
-    )
+    page.add_init_script('addEventListener("pageshow", e => { (window.__rvShows ||= []).push(e.persisted); })')
+    open_lesson(page, site_url + "intro/hello/")
     page.check('input[name="q0"][value="0"]')
     page.check('input[name="q1"][value="2"]')
     assert page.locator('.rv-q[data-answer="0"] .rv-q-feedback').is_visible()
@@ -290,8 +285,7 @@ def test_narrow_layout_stacks(page, site_url):
 
 def test_splitter_reclamps_when_window_shrinks(page, site_url):
     page.set_viewport_size({"width": 1400, "height": 800})
-    page.goto(site_url + "intro/hello/")
-    page.wait_for_function("window.RV !== undefined")
+    open_lesson(page, site_url + "intro/hello/")
     page.evaluate("window.RV.setCodeWidth(1100)")
     assert page.locator("#rv-code").bounding_box()["width"] > 1000
     page.set_viewport_size({"width": 1000, "height": 800})
