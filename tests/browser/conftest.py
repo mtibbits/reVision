@@ -5,6 +5,7 @@ import http.server
 import re
 import shutil
 import threading
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 from typing import NamedTuple
@@ -33,7 +34,7 @@ class _QuietHandler(RangeHTTPRequestHandler):
         pass
 
 
-def build_example(tmp_path_factory, name: str, edit=None) -> Path:
+def build_example(tmp_path_factory, name: str, edit: Callable[[Path], None] | None = None) -> Path:
     """Build a fresh copy of the minimal example, after edit(src) changes it if given."""
     root = tmp_path_factory.mktemp(name)
     src = root / "m"
@@ -46,6 +47,7 @@ def build_example(tmp_path_factory, name: str, edit=None) -> Path:
 
 
 def replace_once(path: Path, old: str, new: str) -> None:
+    """Replace old, which must occur exactly once in path, with new; write the file back with LF endings."""
     text = path.read_text(encoding="utf-8")
     assert text.count(old) == 1, old
     path.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
