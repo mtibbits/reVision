@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
+from . import conftest
 from .conftest import MEDIA_READY, SEGMENTS, fail_media, serve_gated
 
 
@@ -97,3 +100,12 @@ def test_working_media_pane_unchanged(hello):
     assert hello.evaluate("document.querySelector('.rv-media-error').hidden")
     assert abs(m["paneH"] - m["cap"]) <= 0.5, m
     assert hello.errors == []
+
+
+def test_arrival_guard_names_the_request(monkeypatch):
+    monkeypatch.setattr(conftest, "ARRIVAL_TIMEOUT", 0.05)
+    with pytest.raises(pytest.fail.Exception, match=r"the media \(\.wav\) request never reached the test server"):
+        conftest._arrived(threading.Event(), "media (.wav)")
+    seen = threading.Event()
+    seen.set()
+    conftest._arrived(seen, "media (.wav)")

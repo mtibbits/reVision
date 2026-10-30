@@ -25,6 +25,7 @@ MEDIA_READY = "document.getElementById('rv-media-el').readyState >= 1"
 SEGMENTS = 14
 WAV = re.compile(r".*\.wav(\?.*)?$")
 APP = re.compile(r".*/assets/app\.[0-9a-f]+\.js$")
+ARRIVAL_TIMEOUT = 10  # seconds a gated request may take to reach the server; measured under 0.7
 
 
 class _QuietHandler(RangeHTTPRequestHandler):
@@ -90,6 +91,8 @@ class MediaGate:
     def __init__(self) -> None:
         self.media = threading.Event()
         self.app = threading.Event()
+        self.media_seen = threading.Event()  # set when that request reaches the server
+        self.app_seen = threading.Event()
         self.release()
 
     def release(self) -> None:
@@ -104,10 +107,12 @@ class _GatedHandler(_QuietHandler):
 
     def send_head(self):
         if WAV.match(self.path):
+            self.gate.media_seen.set()
             self.gate.media.wait(30)
             self.send_error(404)
             return None
         if APP.match(self.path):
+            self.gate.app_seen.set()
             self.gate.app.wait(30)
         return super().send_head()
 
@@ -127,24 +132,34 @@ def serve_gated(out: Path):
             gate.release()
 
 
+def _arrived(event: threading.Event, what: str) -> None:
+    if not event.wait(ARRIVAL_TIMEOUT):
+        pytest.fail(f"the {what} request never reached the test server in {ARRIVAL_TIMEOUT}s")
+
+
 def fail_media(page, site: GatedSite, order: str) -> list[str]:
     """Load site with its media failing before ("early") or after ("late") the deferred app.js runs.
 
     The server fails the media, not page.route: WebKit's media requests never reach Playwright, so a route
-    neither sees nor fails them."""
+    neither sees nor fails them. Fails naming any gated request that never reaches the server."""
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     gate = site.gate
+    gate.media_seen.clear()
+    gate.app_seen.clear()
     try:
         if order == "late":
             gate.media.clear()
             page.goto(site.url, wait_until="domcontentloaded")  # a held media request delays "load"
             page.wait_for_function("window.RV !== undefined")
             assert page.evaluate("document.getElementById('rv-media-el').error === null")
+            _arrived(gate.media_seen, "media (.wav)")  # it reached the gate and is held until released
             gate.media.set()
         else:
             gate.app.clear()
             page.goto(site.url, wait_until="commit")
+            _arrived(gate.app_seen, "app.js")
+            _arrived(gate.media_seen, "media (.wav)")
             page.wait_for_function(
                 "(() => { const m = document.getElementById('rv-media-el'); return !!m && m.error !== null; })()"
             )
