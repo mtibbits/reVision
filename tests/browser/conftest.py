@@ -86,7 +86,8 @@ def boxed(page):
 
 
 class MediaGate:
-    """Holds the test server's media (which it always fails) or app.js until released."""
+    """Holds the test server's media (which it always fails) or app.js until released, and records in
+    media_seen/app_seen when each request reaches the server."""
 
     def __init__(self) -> None:
         self.media = threading.Event()
@@ -132,7 +133,7 @@ def serve_gated(out: Path):
             gate.release()
 
 
-def _arrived(event: threading.Event, what: str, timeout: float | None = None) -> None:
+def arrived(event: threading.Event, what: str, timeout: float | None = None) -> None:
     if timeout is None:
         timeout = ARRIVAL_TIMEOUT  # read at call time, so a patched constant still applies
     if not event.wait(timeout):
@@ -155,13 +156,13 @@ def fail_media(page, site: GatedSite, order: str) -> list[str]:
             page.goto(site.url, wait_until="domcontentloaded")  # a held media request delays "load"
             page.wait_for_function("window.RV !== undefined")
             assert page.evaluate("document.getElementById('rv-media-el').error === null")
-            _arrived(gate.media_seen, "media (.wav)")  # it reached the gate and is held until released
+            arrived(gate.media_seen, "media (.wav)")  # it reached the gate and is held until released
             gate.media.set()
         else:
             gate.app.clear()
             page.goto(site.url, wait_until="commit")
-            _arrived(gate.app_seen, "app.js")
-            _arrived(gate.media_seen, "media (.wav)")
+            arrived(gate.app_seen, "app.js")
+            arrived(gate.media_seen, "media (.wav)")
             page.wait_for_function(
                 "(() => { const m = document.getElementById('rv-media-el'); return !!m && m.error !== null; })()"
             )

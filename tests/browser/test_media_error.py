@@ -6,7 +6,7 @@ import threading
 
 import pytest
 
-from .conftest import MEDIA_READY, SEGMENTS, _arrived, fail_media, serve_gated
+from .conftest import MEDIA_READY, SEGMENTS, arrived, fail_media, serve_gated
 
 
 @pytest.fixture(scope="module")
@@ -112,7 +112,7 @@ def test_working_media_pane_unchanged(hello):
 
 def test_arrival_guard_names_the_request():
     with pytest.raises(pytest.fail.Exception, match=r"the media \(\.wav\) request never reached the test server"):
-        _arrived(threading.Event(), "media (.wav)", timeout=0.05)
+        arrived(threading.Event(), "media (.wav)", timeout=0.05)
     seen = threading.Event()
     seen.set()
-    _arrived(seen, "media (.wav)")
+    arrived(seen, "media (.wav)")
