@@ -36,6 +36,7 @@ def measure(page) -> dict:
             segCount: t.querySelectorAll('.rv-seg').length,
             failedClass: pane.classList.contains('rv-media-failed'),
             toggleH: document.getElementById('rv-media-toggle').getBoundingClientRect().height,
+            rightH: document.querySelector('.rv-right').getBoundingClientRect().height,
           };
         })()"""
     )
@@ -80,21 +81,23 @@ def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media):
     assert errors == []
 
 
+@pytest.mark.parametrize("width", [1400, 700])
 @pytest.mark.parametrize("case", ["long", "short"])
 @pytest.mark.parametrize("order", ["early", "late"])
-def test_failed_pane_fits_content_and_caps(page, long_media, short_media, order, case):
-    page.set_viewport_size({"width": 1400, "height": 800})
+def test_failed_pane_fits_content_and_caps(page, long_media, short_media, order, case, width):
+    page.set_viewport_size({"width": width, "height": 800})
     site = long_media if case == "long" else short_media
     errors = fail_media(page, site, order)
     m = measure(page)
+    cap = min(m["cap"], m["rightH"] / 2)  # the cap, or half the shared region when narrow (#13)
     assert m["msgH"] > 0 and m["msgInside"], m
-    assert m["paneH"] <= m["cap"] + 0.5, m
+    assert m["paneH"] <= cap + 0.5, m
     content = m["borderTop"] + m["padTop"] + m["padBottom"] + max(m["msgH"], m["toggleH"]) + m["rowGap"] + m["tScroll"]  # row 1 holds the message and the toggle
     assert m["paneH"] <= content + 1, m
     if case == "short":
-        assert m["paneH"] < m["cap"] - 1, m  # the pane shrank to its content
+        assert m["paneH"] < cap - 1, m  # the pane shrank to its content
     else:
-        assert m["paneH"] >= m["cap"] - 0.5, m  # the pane is capped, not grown
+        assert m["paneH"] >= cap - 0.5, m  # the pane is capped, not grown
     assert errors == []
 
 
