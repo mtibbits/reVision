@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
-from .conftest import MEDIA_READY, SEGMENTS, fail_media, serve_gated
+from .conftest import MEDIA_READY, SEGMENTS, arrived, fail_media, serve_gated
 
 
 @pytest.fixture(scope="module")
@@ -33,6 +35,7 @@ def measure(page) -> dict:
             segCount: t.querySelectorAll('.rv-seg').length,
             failedClass: pane.classList.contains('rv-media-failed'),
             toggleH: document.getElementById('rv-media-toggle').getBoundingClientRect().height,
+            rightH: document.querySelector('.rv-right').getBoundingClientRect().height,
           };
         })()"""
     )
@@ -60,32 +63,40 @@ def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media):
     box = page.evaluate(
         """(() => {
           const t = document.getElementById('rv-transcript');
+          const tScroll = t.scrollHeight, tClient = t.clientHeight;
           t.scrollTop = t.scrollHeight;
           const segs = t.querySelectorAll('.rv-seg');
           const r = t.getBoundingClientRect(), s = segs[segs.length - 1].getBoundingClientRect();
-          return { tTop: r.top, tBottom: r.bottom, sTop: s.top, sBottom: s.bottom };
+          const p = document.getElementById('rv-media').getBoundingClientRect();
+          return { tScroll, tClient, tTop: r.top, tBottom: r.bottom, sTop: s.top, sBottom: s.bottom,
+                   pTop: p.top, pBottom: p.bottom };
         })()"""
     )
+    assert box["tScroll"] > box["tClient"], box  # the subject: a transcript that scrolls
     assert box["sTop"] >= box["tTop"] - 1, box
     assert box["sBottom"] <= box["tBottom"] + 1, box
+    assert box["sTop"] >= box["pTop"] - 1, box  # and its last segment shows inside the pane
+    assert box["sBottom"] <= box["pBottom"] + 1, box
     assert errors == []
 
 
+@pytest.mark.parametrize("width", [1400, 700])
 @pytest.mark.parametrize("case", ["long", "short"])
 @pytest.mark.parametrize("order", ["early", "late"])
-def test_failed_pane_fits_content_and_caps(page, long_media, short_media, order, case):
-    page.set_viewport_size({"width": 1400, "height": 800})
+def test_failed_pane_fits_content_and_caps(page, long_media, short_media, order, case, width):
+    page.set_viewport_size({"width": width, "height": 800})
     site = long_media if case == "long" else short_media
     errors = fail_media(page, site, order)
     m = measure(page)
+    cap = min(m["cap"], m["rightH"] / 2)  # the cap, or half the shared region when narrow (#13)
     assert m["msgH"] > 0 and m["msgInside"], m
-    assert m["paneH"] <= m["cap"] + 0.5, m
+    assert m["paneH"] <= cap + 0.5, m
     content = m["borderTop"] + m["padTop"] + m["padBottom"] + max(m["msgH"], m["toggleH"]) + m["rowGap"] + m["tScroll"]  # row 1 holds the message and the toggle
     assert m["paneH"] <= content + 1, m
     if case == "short":
-        assert m["paneH"] < m["cap"] - 1, m  # the pane shrank to its content
+        assert m["paneH"] < cap - 1, m  # the pane shrank to its content
     else:
-        assert m["paneH"] >= m["cap"] - 0.5, m  # the pane is capped, not grown
+        assert m["paneH"] >= cap - 0.5, m  # the pane is capped, not grown
     assert errors == []
 
 
@@ -97,3 +108,11 @@ def test_working_media_pane_unchanged(hello):
     assert hello.evaluate("document.querySelector('.rv-media-error').hidden")
     assert abs(m["paneH"] - m["cap"]) <= 0.5, m
     assert hello.errors == []
+
+
+def test_arrival_guard_names_the_request():
+    with pytest.raises(pytest.fail.Exception, match=r"the media \(\.wav\) request never reached the test server"):
+        arrived(threading.Event(), "media (.wav)", timeout=0.05)
+    seen = threading.Event()
+    seen.set()
+    arrived(seen, "media (.wav)")
