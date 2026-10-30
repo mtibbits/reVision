@@ -132,7 +132,9 @@ def serve_gated(out: Path):
             gate.release()
 
 
-def _arrived(event: threading.Event, what: str, timeout: float = ARRIVAL_TIMEOUT) -> None:
+def _arrived(event: threading.Event, what: str, timeout: float | None = None) -> None:
+    if timeout is None:
+        timeout = ARRIVAL_TIMEOUT  # read at call time, so a patched constant still applies
     if not event.wait(timeout):
         pytest.fail(f"the {what} request never reached the test server in {timeout}s")
 
