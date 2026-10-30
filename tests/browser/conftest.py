@@ -132,9 +132,9 @@ def serve_gated(out: Path):
             gate.release()
 
 
-def _arrived(event: threading.Event, what: str) -> None:
-    if not event.wait(ARRIVAL_TIMEOUT):
-        pytest.fail(f"the {what} request never reached the test server in {ARRIVAL_TIMEOUT}s")
+def _arrived(event: threading.Event, what: str, timeout: float = ARRIVAL_TIMEOUT) -> None:
+    if not event.wait(timeout):
+        pytest.fail(f"the {what} request never reached the test server in {timeout}s")
 
 
 def fail_media(page, site: GatedSite, order: str) -> list[str]:
