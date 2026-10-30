@@ -31,6 +31,7 @@ CI_ONLY = pytest.mark.skipif(
 )
 TEST_WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
 DEMO_WORKFLOW = ROOT / ".github" / "workflows" / "demo.yml"
+DEPENDABOT = ROOT / ".github" / "dependabot.yml"
 SEPARATORS = {"&&", "||", ";", "|", "|&"}
 
 
@@ -177,6 +178,33 @@ def test_demo_workflow_checks_before_building():
         assert _has_adjacent(tokens, "--root", "examples/minimal"), (
             f"{name}: the check must gate the root that is built"
         )
+
+
+def test_dependabot_watches_pins_and_actions():
+    config = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
+    name = DEPENDABOT.name
+    assert config["version"] == 2, f"{name}: expected version 2"
+    # The raw list, so a duplicated or dropped entry cannot hide behind a dict.
+    ecosystems = [u["package-ecosystem"] for u in config["updates"]]
+    assert ecosystems == ["pip", "github-actions"], (
+        f"{name}: expected one pip and one github-actions entry, found {ecosystems}"
+    )
+    pip, actions = config["updates"]
+    assert pip == {
+        "package-ecosystem": "pip",
+        "directory": "/",
+        "schedule": {"interval": "weekly"},
+        "versioning-strategy": "increase-if-necessary",
+        "groups": {"rendered-output": {"patterns": ["*"]}},
+    }, f"{name}: the pip entry must propose the CI pin bumps as one weekly group"
+    # One group, so upload-/download-artifact and upload-pages-artifact/deploy-pages move
+    # together; directory "/" is where Dependabot finds .github/workflows/.
+    assert actions == {
+        "package-ecosystem": "github-actions",
+        "directory": "/",
+        "schedule": {"interval": "weekly"},
+        "groups": {"actions": {"patterns": ["*"]}},
+    }, f"{name}: the github-actions entry must propose action updates as one weekly group"
 
 
 def test_install_command_is_documented_verbatim():
