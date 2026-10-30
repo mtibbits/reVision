@@ -63,14 +63,20 @@ def test_transcript_scrolls_to_last_segment_in_error_state(page, long_media):
     box = page.evaluate(
         """(() => {
           const t = document.getElementById('rv-transcript');
+          const tScroll = t.scrollHeight, tClient = t.clientHeight;
           t.scrollTop = t.scrollHeight;
           const segs = t.querySelectorAll('.rv-seg');
           const r = t.getBoundingClientRect(), s = segs[segs.length - 1].getBoundingClientRect();
-          return { tTop: r.top, tBottom: r.bottom, sTop: s.top, sBottom: s.bottom };
+          const p = document.getElementById('rv-media').getBoundingClientRect();
+          return { tScroll, tClient, tTop: r.top, tBottom: r.bottom, sTop: s.top, sBottom: s.bottom,
+                   pTop: p.top, pBottom: p.bottom };
         })()"""
     )
+    assert box["tScroll"] > box["tClient"], box  # the subject: a transcript that scrolls
     assert box["sTop"] >= box["tTop"] - 1, box
     assert box["sBottom"] <= box["tBottom"] + 1, box
+    assert box["sTop"] >= box["pTop"] - 1, box  # and its last segment shows inside the pane
+    assert box["sBottom"] <= box["pBottom"] + 1, box
     assert errors == []
 
 
