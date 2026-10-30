@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-import http.server
 import re
-import shutil
-import threading
-from functools import partial
-from pathlib import Path
 
 import pytest
 
-from revision_engine.build import build
-
-from .conftest import FIXED, _QuietHandler
+from .conftest import HELLO_SRC, build_example, open_lesson, replace_once, serve
 
 EDITS = {"add-fn": 'URL="https://example.com/add"', "printf-node": 'href="https://example.com/printf"'}
 # Every selector is SVG-scoped: the variant button and the phrase span also carry data-anchor="add-fn".
@@ -34,21 +27,12 @@ LINKED = (
 
 @pytest.fixture(scope="module")
 def links_url(tmp_path_factory):
-    root = tmp_path_factory.mktemp("links")
-    src = root / "m"
-    shutil.copytree(Path(__file__).resolve().parents[2] / "examples" / "minimal", src)
-    dot = src / "docs/revision/chapters/01-intro/lessons/01-hello/diagrams/flow.dot"
-    text = dot.read_text(encoding="utf-8")
-    for node, attr in EDITS.items():
-        assert text.count(f'id="{node}"') == 1
-        text = text.replace(f'id="{node}"', f'id="{node}", {attr}')
-    dot.write_text(text, encoding="utf-8", newline="\n")
-    out = root / "out"
-    build(src, output=out, commit=FIXED)
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), partial(_QuietHandler, directory=str(out)))
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{server.server_address[1]}/intro/hello/"
-    server.shutdown()
+    def edit(src):
+        for node, attr in EDITS.items():
+            replace_once(src / HELLO_SRC / "diagrams/flow.dot", f'id="{node}"', f'id="{node}", {attr}')
+
+    with serve(build_example(tmp_path_factory, "links", edit=edit)) as url:
+        yield url + "intro/hello/"
 
 
 @pytest.fixture
@@ -57,13 +41,9 @@ def links(page, links_url):
         re.compile(r"^https://example\.com/"),
         lambda r: r.fulfill(status=200, content_type="text/html", body="<p>stub</p>"),
     )
-    errors: list[str] = []
     popups: list[object] = []
-    page.on("pageerror", lambda e: errors.append(str(e)))
     page.context.on("page", lambda p: popups.append(p))
-    page.goto(links_url)
-    page.wait_for_function("window.RV !== undefined")
-    page.errors = errors  # type: ignore[attr-defined]
+    open_lesson(page, links_url)
     page.popups = popups  # type: ignore[attr-defined]
     return page
 
