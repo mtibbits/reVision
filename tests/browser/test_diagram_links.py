@@ -121,16 +121,17 @@ def test_click_on_anchored_linked_node_pins(links):
     assert links.popups == []
 
 
-def test_enter_on_anchored_linked_node_pins(links):
-    # The lesson's start anchor is add-fn, so its lines are boxed on load; clear them so focus has to re-box them.
-    expected = boxed(links)
-    assert expected != []
+@pytest.mark.parametrize("key", ["Enter", " "], ids=["enter", "space"])
+def test_enter_on_anchored_linked_node_pins(links, key):
+    r = links.evaluate("RV.data.anchors['add-fn']")
+    expected = list(range(r["start"], r["end"] + 1))
+    # Clear the box drawn on load (the start anchor may be add-fn) so only focus can draw add-fn's.
     links.evaluate("RV.clearBox()")
     assert boxed(links) == []
     links.locator(NODE).focus()
     assert links.locator(NODE).evaluate("g => g === document.activeElement")
     assert boxed(links) == expected
-    links.keyboard.press("Enter")
+    links.keyboard.press(key)
     links.wait_for_function("location.hash === '#add-fn'", timeout=WINDOW_MS)
     assert "rv-pinned" in (links.locator(NODE).get_attribute("class") or "").split()
     assert links.popups == []
