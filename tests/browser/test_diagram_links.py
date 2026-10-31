@@ -6,19 +6,13 @@ import re
 
 import pytest
 
-from .conftest import HELLO_SRC, build_example, open_lesson, replace_once, serve
+from .conftest import HELLO_SRC, boxed, build_example, open_lesson, replace_once, serve
 
 EDITS = {"add-fn": 'URL="https://example.com/add"', "printf-node": 'href="https://example.com/printf"'}
 # Every selector is SVG-scoped: the variant button and the phrase span also carry data-anchor="add-fn".
 NODE = '.rv-svg g[data-anchor="add-fn"]'
 FREE = '.rv-svg g[data-node="printf-node"]'
 WINDOW_MS = 3000
-# app.js's focus listeners make the anchored <g> a live stop (Enter pins), but it sets no tabindex, so the <g>
-# takes focus only in Blink (#82).
-G_UNFOCUSABLE = pytest.mark.xfail_browser(
-    "firefox", "webkit", reason="anchored diagram <g> is not focusable outside Blink: listeners but no tabindex (#82)",
-    raises=AssertionError,
-)
 LINKED = (
     "els => els.filter(a => a.hasAttribute('href')"
     " || a.hasAttributeNS('http://www.w3.org/1999/xlink', 'href')).length"
@@ -89,10 +83,32 @@ def test_stripped_link_is_not_a_tab_stop(links):
     assert walk["nodeLink"] is False, walk
 
 
-@G_UNFOCUSABLE
+# stamp_anchors gives each anchored <g> tabindex="0" at build, so it takes focus with or without app.js and is a Tab
+# stop in every engine (#82).
 def test_anchored_node_is_a_tab_stop(links):
     walk = tab_walk(links)
     assert walk["node"] is True, walk
+
+
+def test_anchored_node_takes_focus_without_javascript(browser, links_url):
+    ctx = browser.new_context(java_script_enabled=False)
+    try:
+        page = ctx.new_page()
+        page.goto(links_url)
+        node = page.locator(NODE)
+        node.focus()
+        assert node.evaluate("g => g === document.activeElement")
+        # Reload rather than blur: Firefox resumes Tab after the blurred node and does not wrap back to it.
+        page.goto(links_url)
+        reached = False
+        for _ in range(200):
+            page.keyboard.press("Tab")
+            if node.evaluate("g => g === document.activeElement"):
+                reached = True
+                break
+        assert reached
+    finally:
+        ctx.close()
 
 
 # Click the node, not its <text>: WebKit reports the box of SVG <text> in these nodes far from where it is drawn
@@ -105,11 +121,17 @@ def test_click_on_anchored_linked_node_pins(links):
     assert links.popups == []
 
 
-@G_UNFOCUSABLE
-def test_enter_on_anchored_linked_node_pins(links):
+@pytest.mark.parametrize("key", ["Enter", " "], ids=["enter", "space"])
+def test_enter_on_anchored_linked_node_pins(links, key):
+    r = links.evaluate("RV.data.anchors['add-fn']")
+    expected = list(range(r["start"], r["end"] + 1))
+    # Clear the box drawn on load (the start anchor may be add-fn) so only focus can draw add-fn's.
+    links.evaluate("RV.clearBox()")
+    assert boxed(links) == []
     links.locator(NODE).focus()
     assert links.locator(NODE).evaluate("g => g === document.activeElement")
-    links.keyboard.press("Enter")
+    assert boxed(links) == expected
+    links.keyboard.press(key)
     links.wait_for_function("location.hash === '#add-fn'", timeout=WINDOW_MS)
     assert "rv-pinned" in (links.locator(NODE).get_attribute("class") or "").split()
     assert links.popups == []

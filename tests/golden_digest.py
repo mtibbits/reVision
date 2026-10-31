@@ -2,11 +2,12 @@
 
 Every file is hashed byte-for-byte except the inlined `<svg class="rv-svg">` diagrams in
 HTML pages. Each of those is replaced by a digest of its nodes (id, class, data-node,
-data-anchor, `<text>` labels) and edges (title, labels), sorted. Graphviz's layout
-(coordinates, fonts, its own graph and edge ids, emit order) is left out, because the
-engine does not own it. Not compared: graph and cluster labels, and link targets
-(`URL`/`tooltip`). A dot node without an explicit `id=` gets a Graphviz-numbered `nodeN`
-id, which does depend on emit order; the golden example gives every node an id.
+data-anchor, tabindex when present, `<text>` labels) and edges (title, labels), sorted.
+Graphviz's layout (coordinates, fonts, its own graph and edge ids, emit order) is left
+out, because the engine does not own it. Not compared: graph and cluster labels, and
+link targets (`URL`/`tooltip`). A dot node without an explicit `id=` gets a
+Graphviz-numbered `nodeN` id, which does depend on emit order; the golden example gives
+every node an id.
 
 Why not pin a Graphviz version in CI instead: Ubuntu's graphviz debs have no upstream
 checksum, Graphviz ships a major release about every six weeks, and text is laid out with
@@ -43,9 +44,10 @@ def _attr(tag: str, name: str) -> str:
 def svg_structure(svg: str) -> str:
     """One line per node and per edge, sorted.
 
-    Node: id, class, data-node, data-anchor, labels. Edge: "edge", its title (`a->b`, from
-    the dot node names) and labels; Graphviz's own `edgeN` id is left out. A group's labels
-    run to the next node, edge or graph group, so a linked node's nested `<g>` is included.
+    Node: id, class, data-node, data-anchor, tabindex when present, labels. Edge: "edge",
+    its title (`a->b`, from the dot node names) and labels; Graphviz's own `edgeN` id is
+    left out. A group's labels run to the next node, edge or graph group, so a linked
+    node's nested `<g>` is included.
     """
     groups = []
     for m in _G_RE.finditer(svg):
@@ -57,7 +59,10 @@ def svg_structure(svg: str) -> str:
         end = groups[i + 1][0].start() if i + 1 < len(groups) else len(svg)
         labels = "|".join(html.unescape(t) for t in _TEXT_RE.findall(svg, m.end(), end))
         if "node" in kinds:
-            lines.append("\t".join([*(_attr(m.group(0), f) for f in FIELDS), labels]))
+            tag = m.group(0)
+            tabindex = _attr(tag, "tabindex")
+            fields = [_attr(tag, f) for f in FIELDS] + ([f"tabindex={tabindex}"] if tabindex else [])
+            lines.append("\t".join([*fields, labels]))
         elif "edge" in kinds:
             title = _TITLE_RE.search(svg, m.end(), end)
             lines.append("\t".join(["edge", html.unescape(title.group(1)) if title else "", labels]))

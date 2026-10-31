@@ -2,8 +2,9 @@ import shutil
 
 import pytest
 
-from revision_engine.diagrams import graphviz_version, render_dot, stamp_anchors, unlink_anchors
+from revision_engine.diagrams import _G_OPEN_RE, graphviz_version, render_dot, stamp_anchors, unlink_anchors
 from revision_engine.errors import BuildError
+from tests.golden_digest import _attr
 
 needs_dot = pytest.mark.skipif(shutil.which("dot") is None, reason="graphviz dot not installed")
 
@@ -39,6 +40,17 @@ def test_stamp_anchors_marks_matching_nodes():
     out = stamp_anchors(svg, {"main-fn"})
     assert 'data-anchor="main-fn"' in out and "rv-svg-anchor" in out
     assert 'data-anchor="x"' not in out
+
+
+def test_stamp_anchors_makes_only_anchored_nodes_tab_stops():
+    svg = (
+        '<svg><g id="main-fn" class="node" data-node="main-fn"><title>a</title></g>'
+        '<g id="x" class="node" data-node="x"></g></svg>'
+    )
+    tags = {_attr(t, "id"): t for t in _G_OPEN_RE.findall(stamp_anchors(svg, {"main-fn"}))}
+    assert sorted(tags) == ["main-fn", "x"]
+    assert 'tabindex="0"' in tags["main-fn"]
+    assert "tabindex" not in tags["x"]
 
 
 def test_graphviz_version_is_string_or_none():
