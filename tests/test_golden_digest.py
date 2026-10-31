@@ -53,6 +53,16 @@ def test_structure_sees_engine_and_author_output():
     assert svg_structure(BASE.replace('class="node rv-svg-anchor"', 'class="node"')) != base
     assert svg_structure(BASE.replace(">printf</text>", ">puts</text>")) != base
     assert svg_structure(BASE.replace('id="printf-node"', 'id="puts-node"')) != base
+    assert svg_structure(BASE.replace('data-anchor="main-fn">', 'data-anchor="main-fn" tabindex="0">')) != base
+
+
+def test_structure_without_tabindex_is_unchanged():
+    # A node without tabindex digests as it did before the field existed, so untouched pages keep their hashes.
+    assert svg_structure(BASE) == (
+        "edge\tmain->out\t\n"
+        "main-fn\tnode rv-svg-anchor\tmain-fn\tmain-fn\tmain()\n"
+        "printf-node\tnode\tprintf-node\t\tprintf"
+    )
 
 
 def test_structure_sees_edges():

@@ -11,6 +11,8 @@ import pytest
 from revision_engine import __version__
 from revision_engine.cli import main
 from revision_engine.config import DEFAULT_VOICE
+from revision_engine.diagrams import _G_OPEN_RE
+from tests.golden_digest import _attr
 
 
 def test_version_flag_prints_version(capsys):
@@ -318,3 +320,20 @@ def test_build_strips_anchored_link_and_keeps_free_link(src, tmp_path, capsys):
     assert "example.com/add" not in html
     assert 'xlink:href="https://example.com/printf"' in html
     assert f"warning: {w}\n" in capsys.readouterr().out
+
+
+@needs_dot
+def test_build_anchored_nodes_are_tab_stops(src, tmp_path):
+    out = tmp_path / "site"
+    assert main(["build", "--root", str(src), "--output", str(out), "--commit", FIXED]) == 0
+    nodes = [
+        t
+        for page in out.rglob("*.html")
+        for t in _G_OPEN_RE.findall(page.read_text(encoding="utf-8"))
+        if "node" in _attr(t, "class").split()
+    ]
+    anchored = [t for t in nodes if _attr(t, "data-anchor")]
+    free = [t for t in nodes if not _attr(t, "data-anchor")]
+    assert len(anchored) >= 2 and len(free) >= 1
+    assert all(_attr(t, "tabindex") == "0" for t in anchored)
+    assert not any(_attr(t, "tabindex") for t in free)

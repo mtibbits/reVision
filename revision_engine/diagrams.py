@@ -66,7 +66,7 @@ def stamp_anchors(svg: str, anchor_names: set[str]) -> str:
     def repl(m: re.Match) -> str:
         node = m.group(1)
         if node in anchor_names:
-            return f'<g id="{node}" class="node rv-svg-anchor" data-node="{node}" data-anchor="{node}"'
+            return f'<g id="{node}" class="node rv-svg-anchor" data-node="{node}" data-anchor="{node}" tabindex="0"'
         return m.group(0)
 
     return re.sub(r'<g id="([^"]+)" class="node" data-node="[^"]+"', repl, svg)
