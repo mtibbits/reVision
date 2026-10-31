@@ -13,8 +13,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y graphviz
@@ -22,7 +22,7 @@ jobs:
       # tests/test_ci_constraints.py::test_demo_workflow_checks_before_building pins this step before rv2 build.
       - run: rv2 check --strict --root examples/minimal
       - run: rv2 build --root examples/minimal --output public
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: public
   deploy:
@@ -33,4 +33,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
