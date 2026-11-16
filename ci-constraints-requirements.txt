@@ -6,7 +6,7 @@
 # reddens the golden test on its PR, where the manifest is regenerated after review.
 # tests/test_ci_constraints.py checks this list against pyproject.toml and, in CI, the installed set.
 jinja2==3.1.6
-markdown-it-py==4.2.0
+markdown-it-py==4.3.0
 markupsafe==3.0.4
 mdurl==0.1.2
 pygments==2.21.0
